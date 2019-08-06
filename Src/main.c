@@ -26,6 +26,53 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#ifndef COUNTOF
+#define COUNTOF(arr) (sizeof(arr)/sizeof(arr[0]))
+#endif
+
+//This controls whether we use the FreeRTOS heap implementation to also provide
+//the libc malloc() and friends.
+#define USE_FREERTOS_HEAP_IMPL 1
+
+volatile int dummy;	//XXX for debugging; delete
+#ifdef DEBUG
+volatile size_t g_nHeapFree;
+volatile size_t g_nMinEverHeapFree;
+volatile int g_nMinStackFreeDefault;
+#endif
+
+#if USE_FREERTOS_HEAP_IMPL
+
+#if configAPPLICATION_ALLOCATED_HEAP
+//we define our heap (to be used by FreeRTOS heap_4.c implementation) to be
+//exactly where we want it to be.
+__attribute__((aligned(8))) 
+uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
+#endif
+//we implemented a 'realloc' for a heap_4 derived implementation
+extern void* pvPortRealloc( void* pvOrig, size_t xWantedSize );
+//we implemented a 'heapwalk' function
+typedef int (*CBK_HEAPWALK) ( void* pblk, uint32_t nBlkSize, int bIsFree, void* pinst );
+extern int vPortHeapWalk ( CBK_HEAPWALK pfnWalk, void* pinst );
+
+//'wrapped functions' for library interpositioning
+//you must specify these gcc (linker-directed) options to cause the wrappers'
+//delights to be generated:
+
+//-Wl,--wrap,malloc -Wl,--wrap,free -Wl,--wrap,realloc -Wl,--wrap,calloc
+//-Wl,--wrap,_malloc_r -Wl,--wrap,_free_r -Wl,--wrap,_realloc_r -Wl,--wrap,_calloc_r
+
+//hmm; can I declare these 'inline' and save a little code and stack?
+void* __wrap_malloc ( size_t size ) { return pvPortMalloc ( size ); }
+void __wrap_free ( void* pv ) { vPortFree ( pv ); }
+void* __wrap_realloc ( void* pv, size_t size ) { return pvPortRealloc ( pv, size ); }
+
+void* __wrap__malloc_r ( struct _reent* r, size_t size ) { return pvPortMalloc ( size ); }
+void __wrap__free_r ( struct _reent* r, void* pv ) { vPortFree ( pv ); }
+void* __wrap__realloc_r ( struct _reent* r, void* pv, size_t size ) { return pvPortRealloc ( pv, size ); }
+
+#endif
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +148,9 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+
+	//do a dummy alloc to cause the heap to be init'ed and so the memory stats as well
+	vPortFree ( pvPortMalloc ( 0 ) );
 
   /* USER CODE END SysInit */
 
@@ -425,6 +475,60 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+
+
+//====================================================
+//====================================================
+
+
+
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+	/* Run time stack overflow checking is performed if
+	configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+	called if a stack overflow is detected. */
+	volatile int i = 0;
+	(void)i;
+}
+
+
+
+void vApplicationMallocFailedHook(void)
+{
+	/* vApplicationMallocFailedHook() will only be called if
+	configUSE_MALLOC_FAILED_HOOK is set to 1 in FreeRTOSConfig.h. It is a hook
+	function that will get called if a call to pvPortMalloc() fails.
+	pvPortMalloc() is called internally by the kernel whenever a task, queue,
+	timer or semaphore is created. It is also called by various parts of the
+	demo application. If heap_1.c or heap_2.c are used, then the size of the
+	heap available to pvPortMalloc() is defined by configTOTAL_HEAP_SIZE in
+	FreeRTOSConfig.h, and the xPortGetFreeHeapSize() API function can be used
+	to query the size of free heap space that remains (although it does not
+	provide information on how the remaining heap might be fragmented). */
+	volatile int i = 0;
+	(void)i;
+}
+
+
+
+//====================================================
+//EXTI support
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+/*
+	switch ( GPIO_Pin )
+	{
+		default:
+			//XXX que?
+		break;
+	}
+*/
+}
+
+
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -443,11 +547,25 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	//Infinite loop
+	uint32_t msWait = 1000;
+	for(;;)
+	{
+#ifdef DEBUG
+		//XXX these are to tune the freertos heap size; if we have a heap
+#if USE_FREERTOS_HEAP_IMPL
+		g_nHeapFree = xPortGetFreeHeapSize();
+		g_nMinEverHeapFree = xPortGetMinimumEverFreeHeapSize();
+#else
+		g_nMinEverHeapFree = (char*)platform_get_last_free_ram( 0 ) - (char*)platform_get_first_free_ram( 0 );
+#endif
+		//free stack space measurements
+		g_nMinStackFreeDefault = uxTaskGetStackHighWaterMark ( defaultTaskHandle );
+		//XXX others
+#endif
+		osDelay ( msWait );
+	}
+
   /* USER CODE END 5 */ 
 }
 
@@ -480,7 +598,8 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+	volatile int i = 0;
+	(void)i;
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -497,6 +616,8 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+	volatile int i = 0;
+	(void)i;
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
