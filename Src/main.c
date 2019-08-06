@@ -26,6 +26,10 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "system_interfaces.h"
+#include "serial_devices.h"
+#include "util_circbuff2.h"
+
 #include "lamps.h"
 #include "task_notification_bits.h"
 
@@ -43,6 +47,7 @@ volatile int dummy;	//XXX for debugging; delete
 #ifdef DEBUG
 volatile size_t g_nHeapFree;
 volatile size_t g_nMinEverHeapFree;
+volatile int g_nMaxGPSRxQueue;
 volatile int g_nMinStackFreeDefault;
 #endif
 
@@ -555,6 +560,13 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
+
+	//crank up serial ports
+	//XXX (I wonder if this is best way up in main at least for USB; I ask
+	//because the MX_USB_DEVICE_Init() above could conceivably stimulate
+	//action on these buffers before they have been initialized
+	UART1_Init();	//UART1 == GPS
+
 	//light some lamps on a countdown
 	LightLamp ( 1000, &g_lltGn, _ledOnGn );
 	//================================================
@@ -596,6 +608,7 @@ void StartDefaultTask(void const * argument)
 #else
 		g_nMinEverHeapFree = (char*)platform_get_last_free_ram( 0 ) - (char*)platform_get_first_free_ram( 0 );
 #endif
+		g_nMaxGPSRxQueue = UART1_rxbuff_max();
 		//free stack space measurements
 		g_nMinStackFreeDefault = uxTaskGetStackHighWaterMark ( defaultTaskHandle );
 		//XXX others
