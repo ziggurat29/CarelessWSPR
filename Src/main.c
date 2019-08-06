@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "usbd_cdc.h"	//just for the XXX_USBCDC_PresenceHack()
 #include "system_interfaces.h"
 #include "serial_devices.h"
 #include "util_circbuff2.h"
@@ -48,6 +49,8 @@ volatile int dummy;	//XXX for debugging; delete
 volatile size_t g_nHeapFree;
 volatile size_t g_nMinEverHeapFree;
 volatile int g_nMaxGPSRxQueue;
+volatile int g_nMaxCDCTxQueue;
+volatile int g_nMaxCDCRxQueue;
 volatile int g_nMinStackFreeDefault;
 #endif
 
@@ -154,6 +157,22 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+
+	//if you get a linker fail on the following, it is because some manual
+	//changes to:
+	//  .\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h
+	//  .\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Src\usbd_cdc.c
+	//  .\Src\usbd_cdc_if.c
+	//must be applied.  There are backups of those files to help with that.
+	//This has to be done manually, because the changes are in tool generated
+	//code that gets overwritten when you re-run STM32CubeMX.  The nature of
+	//those changes are such that when they are overwritten, you will still
+	//be able to build but stuff won't work at runtime.  This hack will cause
+	//the build to fail if you forget to merge those changes back on, thus
+	//prompting you to do so.
+	//Sorry for the inconvenience, but I don't think there is any better way
+	//of making it obvious that this chore simply must be done.
+	XXX_USBCDC_PresenceHack();	//this does nothing real; do not delete
 
   /* USER CODE END Init */
 
@@ -566,6 +585,7 @@ void StartDefaultTask(void const * argument)
 	//because the MX_USB_DEVICE_Init() above could conceivably stimulate
 	//action on these buffers before they have been initialized
 	UART1_Init();	//UART1 == GPS
+	USBCDC_Init();	//CDC == monitor
 
 	//light some lamps on a countdown
 	LightLamp ( 1000, &g_lltGn, _ledOnGn );
@@ -609,6 +629,8 @@ void StartDefaultTask(void const * argument)
 		g_nMinEverHeapFree = (char*)platform_get_last_free_ram( 0 ) - (char*)platform_get_first_free_ram( 0 );
 #endif
 		g_nMaxGPSRxQueue = UART1_rxbuff_max();
+		g_nMaxCDCTxQueue = CDC_txbuff_max();
+		g_nMaxCDCRxQueue = CDC_rxbuff_max();
 		//free stack space measurements
 		g_nMinStackFreeDefault = uxTaskGetStackHighWaterMark ( defaultTaskHandle );
 		//XXX others

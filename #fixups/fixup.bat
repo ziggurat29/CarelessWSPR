@@ -4,3 +4,12 @@
 
 del ..\Middlewares\Third_Party\FreeRTOS\Source\portable\MemMang\heap_4.c
 copy heap_x.c.MyHeap ..\Middlewares\Third_Party\FreeRTOS\Source\portable\MemMang\heap_x.c
+
+del ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h
+copy usbd_cdc.h.MyCDCExt ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Inc\usbd_cdc.h
+
+del ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Src\usbd_cdc.c
+copy usbd_cdc.c.MyCDCExt ..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Src\usbd_cdc.c
+
+del ..\Src\usbd_cdc_if.c
+copy usbd_cdc_if.c.MyCDCExt ..\Src\usbd_cdc_if.c
