@@ -96,6 +96,8 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+	volatile int i = 0;
+	(void)i;
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }
@@ -111,6 +113,8 @@ void MemManage_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
+	volatile int i = 0;
+	(void)i;
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
   }
 }
@@ -126,6 +130,8 @@ void BusFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
+	volatile int i = 0;
+	(void)i;
     /* USER CODE END W1_BusFault_IRQn 0 */
   }
 }
@@ -141,6 +147,8 @@ void UsageFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
+	volatile int i = 0;
+	(void)i;
     /* USER CODE END W1_UsageFault_IRQn 0 */
   }
 }
@@ -151,7 +159,8 @@ void UsageFault_Handler(void)
 void DebugMon_Handler(void)
 {
   /* USER CODE BEGIN DebugMonitor_IRQn 0 */
-
+	volatile int i = 0;
+	(void)i;
   /* USER CODE END DebugMonitor_IRQn 0 */
   /* USER CODE BEGIN DebugMonitor_IRQn 1 */
 
