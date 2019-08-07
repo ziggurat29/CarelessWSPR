@@ -60,7 +60,7 @@ static void _cmdPutString ( const IOStreamIF* pio, const char* pStr )
 static uint32_t _parseInt ( const char* pszToken )
 {
 	uint32_t val;
-	
+
 	val = 0;
 	//see if it starts with 0x meaning 'hex'
 	if ( '0' == pszToken[0] && ( 'x' == pszToken[1] || 'X' == pszToken[1] ) )
@@ -94,7 +94,7 @@ static uint32_t _parseInt ( const char* pszToken )
 			++pszToken;
 		}
 	}
-	
+
 	return val;
 }
 
@@ -189,7 +189,7 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 	_cmdPutString ( pio, ach );
 
 #if USE_FREERTOS_HEAP_IMPL
-//heapwal suspends all tasks, so not good here
+//heapwalk suspends all tasks, so not good here
 //	_cmdPutString ( pio, "Heapwalk:\r\n" );
 //	vPortHeapWalk ( fxnHeapwalk, (void*)pio );
 #endif
@@ -215,7 +215,7 @@ static char _nybbleToChar ( uint8_t nyb )
 {
 	char ret = nyb + '0';
 	if ( nyb > 9 )
-		ret += 'a' - '9' + 1;
+		ret += 'a' - '9' - 1;
 	return ret;
 }
 
@@ -229,40 +229,40 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 	uint32_t nCount;
 	const uint8_t* pby;
 	uint32_t nIdx;
-	
-	pszStartAddress = CMDPROC_nextToken ( pszszTokens );
+
+	pszStartAddress = pszszTokens;
 	if ( NULL == pszStartAddress )
 	{
-		_cmdPutString ( pio, "\r\ndump requires an address\r\n" );
+		_cmdPutString ( pio, "dump requires an address\r\n" );
 		return CMDPROC_ERROR;
 	}
 	pszCount = CMDPROC_nextToken ( pszStartAddress );
 	if ( NULL == pszCount )
 	{
-		_cmdPutString ( pio, "\r\ndump requires a count\r\n" );
+		_cmdPutString ( pio, "dump requires a count\r\n" );
 		return CMDPROC_ERROR;
 	}
-	
+
 	//parse address
 	nStartAddr = _parseInt ( pszStartAddress );
-	
+
 	//parse count
 	nCount = _parseInt ( pszCount );
-	
+
 	if ( nCount < 1 )
 	{
-		_cmdPutString ( pio, "\r\ntoo few bytes to dump.  1 - 8192.\r\n" );
+		_cmdPutString ( pio, "too few bytes to dump.  1 - 8192.\r\n" );
 		return CMDPROC_ERROR;
 	}
 	if ( nCount > 8192 )
 	{
-		_cmdPutString ( pio, "\r\ntoo many bytes to dump.  1 - 8192.\r\n" );
+		_cmdPutString ( pio, "too many bytes to dump.  1 - 8192.\r\n" );
 		return CMDPROC_ERROR;
 	}
-	
+
 	//OK, now we do the hex dump
 	_cmdPutString ( pio, "          00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n" );
-	_cmdPutString ( pio, "--------  -----------------------------------------------  --------\r\n" );
+	_cmdPutString ( pio, "--------  -----------------------------------------------  ----------------\r\n" );
 	pby = (const uint8_t*)nStartAddr;
 	for ( nIdx = 0; nIdx < nCount; )
 	{
@@ -270,7 +270,7 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 		int nToDo = nCount - nIdx;
 		if ( nToDo > 16 )
 			nToDo = 16;
-		
+
 		//first, do the address
 		uint32_t nThisAddr = nStartAddr + nIdx;
 		for ( nIter = 0; nIter < 8; ++nIter )
@@ -297,13 +297,12 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 		for ( nIter = 0; nIter < nToDo; ++nIter )
 		{
 			_cmdPutChar ( pio, _printableChar ( pby[nIdx+nIter] ) );
-			++nIdx;
 		}
 		for ( ; nIter < 16; ++nIter )
 		{
 			_cmdPutChar ( pio, ' ' );
 		}
-		
+
 		//finished!
 		_cmdPutString ( pio, "\r\n" );
 		
