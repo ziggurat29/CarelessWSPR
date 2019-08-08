@@ -4,6 +4,8 @@
 //impl
 
 #include "CarelessWSPR_commands.h"
+#include "stm32f1xx_hal.h"
+#include "cmsis_os.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -18,6 +20,7 @@
 
 //forward decl command handlers
 static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlReboot ( const IOStreamIF* pio, const char* pszszTokens );
 static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens );
 
 #ifdef DEBUG
@@ -28,6 +31,7 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 //the array of command descriptors our application supports
 const CmdProcEntry g_aceCommands[] = 
 {
+	{ "reboot", cmdhdlReboot, "restart the board" },
 	{ "dump", cmdhdlDump, "dump memory; dump {addr} {count}" },
 #ifdef DEBUG
 	{ "diag", cmdhdlDiag, "show diagnostic info (DEBUG build only)" },
@@ -133,7 +137,17 @@ static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens
 			_cmdPutString ( pio, "\r\n" );
 		}
 	}
-	
+
+	return CMDPROC_SUCCESS;
+}
+
+
+
+static CmdProcRetval cmdhdlReboot ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	_cmdPutString( pio, "rebooting\r\n" );
+	osDelay ( 500 );	//delay a little to let all that go out before we reset
+	NVIC_SystemReset();
 	return CMDPROC_SUCCESS;
 }
 
