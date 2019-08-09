@@ -35,6 +35,7 @@
 #include "task_notification_bits.h"
 
 #include "task_monitor.h"
+#include "task_gps.h"
 
 
 #ifndef COUNTOF
@@ -524,6 +525,12 @@ void __startWorkerTasks ( void )
 	osThreadStaticDef(taskMonitor, thrdfxnMonitorTask, osPriorityNormal, 0, COUNTOF(g_tbMonitor), g_tbMonitor, &g_tcbMonitor);
 	g_thMonitor = osThreadCreate(osThread(taskMonitor), NULL);
 	}
+
+	//kick off the GPS thread, which handles incoming NMEA data
+	{
+	osThreadStaticDef(taskGPS, thrdfxnGPSTask, osPriorityNormal, 0, COUNTOF(g_tbGPS), g_tbGPS, &g_tcbGPS);
+	g_thGPS = osThreadCreate(osThread(taskGPS), NULL);
+	}
 }
 
 
@@ -606,6 +613,7 @@ void StartDefaultTask(void const * argument)
 
 	//bind the interfaces to the relevant devices
 	g_pMonitorIOIf = &g_pifCDC;		//monitor is on USB CDC
+	g_pGPSIOIf = &g_pifUART1;		//GPS is on UART1
 	//light some lamps on a countdown
 	LightLamp ( 1000, &g_lltGn, _ledOnGn );
 
@@ -657,6 +665,7 @@ void StartDefaultTask(void const * argument)
 		//free stack space measurements
 		g_nMinStackFreeDefault = uxTaskGetStackHighWaterMark ( defaultTaskHandle );
 		g_nMinStackFreeMonitor = uxTaskGetStackHighWaterMark ( g_thMonitor );
+		g_nMinStackFreeGPS = uxTaskGetStackHighWaterMark ( g_thGPS );
 		//XXX others
 #endif
 		

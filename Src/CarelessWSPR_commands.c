@@ -27,6 +27,8 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens );
 #endif
 
+static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens );
+
 
 //the array of command descriptors our application supports
 const CmdProcEntry g_aceCommands[] = 
@@ -36,6 +38,7 @@ const CmdProcEntry g_aceCommands[] =
 #ifdef DEBUG
 	{ "diag", cmdhdlDiag, "show diagnostic info (DEBUG build only)" },
 #endif
+	{ "gps", cmdhdlGps, "show GPS info (if any)" },
 
 	{ "help", cmdhdlHelp, "get help on a command; help {cmd}" },
 };
@@ -163,6 +166,7 @@ extern volatile int g_nMaxCDCTxQueue;
 extern volatile int g_nMaxCDCRxQueue;
 extern volatile int g_nMinStackFreeDefault;
 extern volatile int g_nMinStackFreeMonitor;
+extern volatile int g_nMinStackFreeGPS;
 
 #define USE_FREERTOS_HEAP_IMPL 1
 #if USE_FREERTOS_HEAP_IMPL
@@ -202,6 +206,9 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 	sprintf ( ach, "Task: Monitor: min stack free %u\r\n", g_nMinStackFreeMonitor*sizeof(uint32_t) );
 	_cmdPutString ( pio, ach );
 
+	sprintf ( ach, "Task: GPS: min stack free %u\r\n", g_nMinStackFreeGPS*sizeof(uint32_t) );
+	_cmdPutString ( pio, ach );
+
 #if USE_FREERTOS_HEAP_IMPL
 //heapwalk suspends all tasks, so not good here
 //	_cmdPutString ( pio, "Heapwalk:\r\n" );
@@ -212,6 +219,34 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 }
 #endif
 
+
+//stuff that the GPS task projects from task_gps.h
+#include "task_gps.h"
+
+
+static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	char ach[80];
+
+	if ( g_bLock )//0 != g_nGPSYear )
+	{
+		//emit gps timestamp
+		sprintf ( ach, "GPS TS:  %04d-%02d-%02d %02d:%02d:%02d\r\n",
+				g_nGPSYear, g_nGPSMonth, g_nGPSDay, 
+				g_nGPSHour, g_nGPSMinute, g_nGPSSecond );
+		_cmdPutString ( pio, ach );
+
+		//emit location
+		sprintf ( ach, "GPS Pos:  lat %f, lon %f\r\n", g_fLat, g_fLon );
+		_cmdPutString ( pio, ach );
+	}
+	else
+	{
+		_cmdPutString ( pio, "(no lock yet)\r\n" );
+	}
+
+	return CMDPROC_SUCCESS;
+}
 
 
 //========================================================================
