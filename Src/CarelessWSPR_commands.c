@@ -4,6 +4,7 @@
 //impl
 
 #include "CarelessWSPR_commands.h"
+#include "maidenhead.h"
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"
 
@@ -237,8 +238,19 @@ static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutString ( pio, ach );
 
 		//emit location
-		sprintf ( ach, "GPS Pos:  lat %f, lon %f\r\n", g_fLat, g_fLon );
+		sprintf ( ach, "GPS Pos:  lat %f, lon %f", g_fLat, g_fLon );
 		_cmdPutString ( pio, ach );
+		char ach[8];
+		if ( ! toMaidenhead ( g_fLat, g_fLon, ach, 6 ) )
+		{
+			_cmdPutString ( pio, "  toMaidenhead() failed\r\n" );
+		}
+		else
+		{
+			_cmdPutString ( pio, ", maidenhead " );
+			_cmdPutString ( pio, ach );
+			_cmdPutString ( pio, "\r\n" );
+		}
 	}
 	else
 	{
