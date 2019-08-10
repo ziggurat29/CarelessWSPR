@@ -34,6 +34,8 @@
 #include "lamps.h"
 #include "task_notification_bits.h"
 
+#include "CarelessWSPR_settings.h"
+
 #include "task_monitor.h"
 #include "task_gps.h"
 
@@ -188,6 +190,9 @@ int main(void)
 
 	//do a dummy alloc to cause the heap to be init'ed and so the memory stats as well
 	vPortFree ( pvPortMalloc ( 0 ) );
+
+	//get system config depersisted from flash before we do much more
+	Settings_depersist();
 
   /* USER CODE END SysInit */
 

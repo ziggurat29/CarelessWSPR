@@ -4,6 +4,7 @@
 //impl
 
 #include "CarelessWSPR_commands.h"
+#include "CarelessWSPR_settings.h"
 #include "maidenhead.h"
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"
@@ -12,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+extern RTC_HandleTypeDef hrtc;	//in main.c
 
 #ifndef COUNTOF
 #define COUNTOF(arr) (sizeof(arr)/sizeof(arr[0]))
@@ -21,6 +23,9 @@
 
 //forward decl command handlers
 static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlPerist ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlDeperist ( const IOStreamIF* pio, const char* pszszTokens );
 static CmdProcRetval cmdhdlReboot ( const IOStreamIF* pio, const char* pszszTokens );
 static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens );
 
@@ -34,6 +39,9 @@ static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens 
 //the array of command descriptors our application supports
 const CmdProcEntry g_aceCommands[] = 
 {
+	{ "set", cmdhdlSet, "set a setting value, or list all settings" },
+	{ "persist", cmdhdlPerist, "persist settings to flash" },
+	{ "depersist", cmdhdlDeperist, "depersist settings from flash" },
 	{ "reboot", cmdhdlReboot, "restart the board" },
 	{ "dump", cmdhdlDump, "dump memory; dump {addr} {count}" },
 #ifdef DEBUG
@@ -142,6 +150,250 @@ static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens
 		}
 	}
 
+	return CMDPROC_SUCCESS;
+}
+
+
+static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	PersistentSettings* psettings = Settings_getStruct();
+
+	const char* pszSetting = pszszTokens;
+	if ( NULL == pszSetting )
+	{
+		//list all settings and their current value
+
+		char achText[80];
+
+		//RTC date time
+		RTC_TimeTypeDef sTime;
+		RTC_DateTypeDef sDate;
+		HAL_RTC_GetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
+		HAL_RTC_GetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
+		sprintf ( achText, "datetime:  %04u-%02u-%02u %02u:%02u:%02u\r\n",
+				sDate.Year + 2000, sDate.Month, sDate.Date,
+				sTime.Hours, sTime.Minutes, sTime.Seconds );
+		_cmdPutString ( pio, achText );
+
+		sprintf ( achText, "freq:  %lu\r\n", psettings->_dialFreqHz );
+		_cmdPutString ( pio, achText );
+
+		_cmdPutString ( pio, "band:  " );
+		if ( psettings->_nSubBand < 0 )
+		{
+			_cmdPutString ( pio, "random\r\n" );
+		}
+		else
+		{
+			sprintf ( achText, "freq:  %ld\r\n", psettings->_nSubBand );
+			_cmdPutString ( pio, achText );
+		}
+
+		sprintf ( achText, "duty:  %ld\r\n", psettings->_nDutyPct );
+		_cmdPutString ( pio, achText );
+
+		sprintf ( achText, "callsign:  %s\r\n", psettings->_achCallSign );
+		_cmdPutString ( pio, achText );
+		sprintf ( achText, "maidenhead:  %s\r\n", psettings->_achMaidenhead );
+		_cmdPutString ( pio, achText );
+
+		sprintf ( achText, "power:  %ld\r\n", psettings->_nTxPowerDbm );
+		_cmdPutString ( pio, achText );
+
+
+		sprintf ( achText, "gpson:  %ld\r\n", psettings->_bUseGPS );
+		_cmdPutString ( pio, achText );
+		sprintf ( achText, "gpsrate:  %ld\r\n", psettings->_nGPSbitRate );
+		_cmdPutString ( pio, achText );
+
+		return CMDPROC_SUCCESS;
+	}
+
+	//next, get the value
+	const char* pszValue;
+	pszValue = CMDPROC_nextToken ( pszSetting );
+	if ( NULL == pszValue )
+	{
+		_cmdPutString ( pio, "set " );
+		_cmdPutString ( pio, pszSetting );
+		_cmdPutString ( pio, " requires a setting value\r\n" );
+		return CMDPROC_ERROR;
+	}
+
+	if ( 0 == strcmp ( "datetime", pszSetting ) )
+	{
+		const char* pszTime;
+		pszTime = CMDPROC_nextToken ( pszValue );
+		if ( NULL == pszTime )
+		{
+			_cmdPutString ( pio, "datetime requires yyyy-mm-dd hh:mm:ss\r\n" );
+			return CMDPROC_ERROR;
+		}
+		int nDateLen = strlen ( pszValue );
+		int nTimeLen = strlen ( pszTime );
+		if ( 10 != nDateLen || 8 != nTimeLen || 
+				'-' != pszValue[4] || '-' != pszValue[7] || 
+				':' != pszTime[2] || ':' != pszTime[5] )
+		{
+			_cmdPutString ( pio, "datetime requires yyyy-mm-dd hh:mm:ss\r\n" );
+			return CMDPROC_ERROR;
+		}
+		//set the RTC right now
+		RTC_TimeTypeDef sTime;
+		RTC_DateTypeDef sDate;
+		sTime.Hours = strtoul ( &pszTime[0], NULL, 10 );
+		sTime.Minutes = strtoul ( &pszTime[3], NULL, 10 );
+		sTime.Seconds = strtoul ( &pszTime[6], NULL, 10 );
+		sDate.WeekDay = RTC_WEEKDAY_SUNDAY;	//(arbitrary)
+		sDate.Date = strtoul ( &pszValue[8], NULL, 10 );
+		sDate.Month = strtoul ( &pszValue[5], NULL, 10 );
+		sDate.Year = strtoul ( &pszValue[0], NULL, 10 ) - 2000;
+		HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
+		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
+	}
+	else if ( 0 == strcmp ( "freq", pszSetting ) )
+	{
+		long unsigned int freq = strtoul ( pszValue, NULL, 10 );
+		if ( freq < 7200 || freq > 200000000 )
+		{
+			_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			psettings->_dialFreqHz = freq;
+		}
+	}
+	else if ( 0 == strcmp ( "band", pszSetting ) )
+	{
+		long int band = strtoul ( pszValue, NULL, 10 );
+		if ( band < 0 )
+			band = -1;
+		if ( band > 32 )
+		{
+			_cmdPutString ( pio, "band must be -1, or 0 - 32\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			psettings->_nSubBand = band;
+		}
+	}
+	else if ( 0 == strcmp ( "duty", pszSetting ) )
+	{
+		long int duty = strtoul ( pszValue, NULL, 10 );
+		if ( duty < 0 || duty > 100 )
+		{
+			_cmdPutString ( pio, "duty must be 0 - 100\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			psettings->_nDutyPct = duty;
+		}
+	}
+	else if ( 0 == strcmp ( "callsign", pszSetting ) )
+	{
+		int nLen = strlen ( pszValue );
+		if ( nLen < 4 || nLen > 6 )
+		{
+			_cmdPutString ( pio, "callsign must be 4-6 characters\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			strcpy ( psettings->_achCallSign, pszValue );
+//XXX cause WSPR message to be re-computed
+		}
+	}
+	else if ( 0 == strcmp ( "maidenhead", pszSetting ) )
+	{
+		int nLen = strlen ( pszValue );
+		if ( nLen != 4 )
+		{
+			_cmdPutString ( pio, "maidenhead must always be 4 characters\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			strcpy ( psettings->_achMaidenhead, pszValue );
+//XXX cause WSPR message to be re-computed
+		}
+	}
+	else if ( 0 == strcmp ( "power", pszSetting ) )
+	{
+		long int power = strtoul ( pszValue, NULL, 10 );
+		if ( power < 0 || power > 60 )
+		{
+			_cmdPutString ( pio, "power must be 0 - 60\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			psettings->_nTxPowerDbm = power;
+//XXX cause WSPR message to be re-computed
+		}
+	}
+	else if ( 0 == strcmp ( "gpson", pszSetting ) )
+	{
+		long int gpson = strtoul ( pszValue, NULL, 10 );
+		psettings->_bUseGPS = gpson ? 1 : 0;
+//XXX activate/deactivate GPS
+	}
+	else if ( 0 == strcmp ( "gpsrate", pszSetting ) )
+	{
+		long int rate = strtoul ( pszValue, NULL, 10 );
+		if ( rate < 300 || rate > 115200 )
+		{
+			_cmdPutString ( pio, "rate must be 200 - 115200\r\n" );
+			return CMDPROC_ERROR;
+		}
+		else
+		{
+			psettings->_nGPSbitRate = rate;
+//XXX reconfigure USART1
+		}
+	}
+	else
+	{
+		_cmdPutString ( pio, "error:  the setting " );
+		_cmdPutString ( pio, pszSetting );
+		_cmdPutString ( pio, "is not a valid setting name\r\n" );
+		return CMDPROC_ERROR;
+	}
+
+	_cmdPutString ( pio, "done\r\n" );
+
+	return CMDPROC_SUCCESS;
+}
+
+
+
+static CmdProcRetval cmdhdlPerist ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	if ( Settings_persist() )
+	{
+		_cmdPutString( pio, "settings persisted\r\n" );
+	}
+	else
+	{
+		_cmdPutString ( pio, "Failed to persist settings!\r\n" );
+	}
+	return CMDPROC_SUCCESS;
+}
+
+
+
+static CmdProcRetval cmdhdlDeperist ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	if ( Settings_depersist() )
+	{
+		_cmdPutString( pio, "settings depersisted\r\n" );
+	}
+	else
+	{
+		_cmdPutString ( pio, "Failed to depersist settings!\r\n" );
+	}
 	return CMDPROC_SUCCESS;
 }
 
