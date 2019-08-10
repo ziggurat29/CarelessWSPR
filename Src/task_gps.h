@@ -1,5 +1,5 @@
 //the task that handles incoming GPS NMEA data
-//This is part of the BluepillSi5351Exp001 project.
+//This is part of the CarelessWSPR project.
 //Note:  no effort has been made to make this a general-purpose NMEA processor;
 //in particular we only parse the few messages in which we are interested, and
 //moreover for the GPS device we are particularly using.  If you use a

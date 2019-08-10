@@ -1,5 +1,5 @@
 //the task that handles incoming GPS NMEA data
-//This is part of the BluepillSi5351Exp001 project.
+//This is part of the CarelessWSPR project.
 
 
 #include "task_gps.h"
