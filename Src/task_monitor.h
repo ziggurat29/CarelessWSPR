@@ -11,7 +11,7 @@ extern "C" {
 #include "system_interfaces.h"
 
 extern osThreadId g_thMonitor;
-extern uint32_t g_tbMonitor[ 256 ];
+extern uint32_t g_tbMonitor[ 128 ];
 extern osStaticThreadDef_t g_tcbMonitor;
 
 extern const IOStreamIF* g_pMonitorIOIf;	//the IO device to which the monitor is attached

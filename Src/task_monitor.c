@@ -8,7 +8,7 @@
 
 //the task that runs an interactive monitor on the USB data
 osThreadId g_thMonitor = NULL;
-uint32_t g_tbMonitor[ 256 ];
+uint32_t g_tbMonitor[ 128 ];
 osStaticThreadDef_t g_tcbMonitor;
 
 

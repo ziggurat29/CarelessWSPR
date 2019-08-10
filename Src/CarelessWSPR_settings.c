@@ -24,7 +24,8 @@ static PersistentSettings g_settings;	//our settings!
 #ifndef FLASH_PAGE_SIZE
 #error Unknown Flash Page Size
 #endif
-#define FLASH_SETTINGS_END_ADDR 0x08010000
+//HHH I modded this to get 128K #define FLASH_SETTINGS_END_ADDR 0x08010000
+#define FLASH_SETTINGS_END_ADDR 0x08020000
 #define FLASH_SETTINGS_START_ADDR (FLASH_SETTINGS_END_ADDR-FLASH_PAGE_SIZE)
 #define MAX_SETTINGS_PER_PAGE (FLASH_PAGE_SIZE/SETTINGS_SIZE_ADJUSTED)
 

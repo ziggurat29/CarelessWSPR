@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "lamps.h"
+#include "util_altlib.h"
+#include "stm32f1xx_hal.h"
 
 #ifndef COUNTOF
 #define COUNTOF(arr) (sizeof(arr)/sizeof(arr[0]))
@@ -16,7 +19,7 @@
 
 //the task that runs an interactive monitor on the USB data
 osThreadId g_thGPS = NULL;
-uint32_t g_tbGPS[ 512 ];
+uint32_t g_tbGPS[ 128 ];
 osStaticThreadDef_t g_tcbGPS;
 
 
@@ -34,6 +37,7 @@ volatile int g_nGPSYear;
 
 volatile float g_fLat;	//+ is N, - is S
 volatile float g_fLon;	//+ is E, - is W
+
 
 
 //====================================================
@@ -142,6 +146,8 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 	} while ( '\0' == g_achNMEA0183Sentence[0] );	//skip the empties
 	retval = GPSPROC_SUCCESS;
 
+//_ledToggleGn();
+
 	//The NMEA data is basically CSV, we can do a simple strchr/replace of all
 	//the commas with nul, then treat it as a string sequence.  We will have to
 	//conscientiously not run off the end of buffer.
@@ -151,12 +157,13 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 		*pszThisStr = '\0';
 	}
 	pszThisStr = g_achNMEA0183Sentence;
-//XXX we parse only a couple well-known ones that we care about
+	//we parse only a couple well-known ones that we care about
 	if ( 0 == strcmp ( pszThisStr, "$GPRMC" ) )
 	{
 		//$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
 		//4807.038,N   Latitude 48 deg 07.038' N
 		//01131.000,E  Longitude 11 deg 31.000' E
+		int bLockedStateChanged = 0;
 		char* pchPrevStr = pszThisStr;
 		nextStr ( &pszThisStr );
 		int nLen = pszThisStr - pchPrevStr;
@@ -188,29 +195,38 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 
 			if ( 'A' == *pszStatus )
 			{
-				//the lat/lon is 2 or 3 char degrees, and float minutes
-				int deg;
-				float fmin;
-				sscanf ( pszLat, "%2u%f", &deg, &fmin );
-				g_fLat = deg + fmin / 60;	//convert to decimal degrees
+				//first two chars are deg
+				//remainder is minutes
+				g_fLat = pszLat[0]-'0';
+				g_fLat *= 10;
+				g_fLat += pszLat[1]-'0';
+				float fmin = my_strtof(&pszLat[2], NULL);
+				g_fLat += fmin/60;
 				if ( 'S' == *pszLatHemi )	//+ is N, - is S
 				{
 					g_fLat *= -1;
 				}
 
-				sscanf ( pszLon, "%3u%f", &deg, &fmin );
-				g_fLon = deg + fmin / 60;	//convert to decimal degrees
+				//first three chars are deg
+				//remainder is minute
+				g_fLon = pszLon[0]-'0';
+				g_fLon *= 10;
+				g_fLon += pszLon[1]-'0';
+				g_fLon *= 10;
+				g_fLon += pszLon[2]-'0';
+				fmin = my_strtof(&pszLon[3], NULL);
+				g_fLon += fmin/60;
 				if ( 'W' == *pszLonHemi )	//+ is E, - is W
 				{
 					g_fLon *= -1;
 				}
 
-//XXX callback on  transition from unlocked to locked?
+				bLockedStateChanged = ( 0 == g_bLock );	//take note if we changed
 				g_bLock = 1;
 			}
 			else
 			{
-//XXX callback on  transition from loss of lock?
+				bLockedStateChanged = ( 0 != g_bLock );	//take note if we changed
 				g_bLock = 0;
 			}
 
@@ -233,12 +249,12 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 				nextStr ( &pszThisStr );
 				//char* pszMagVarHemi = pszThisStr;
 
-				g_nGPSHour = atoi(szHour);
-				g_nGPSMinute = atoi(szMinute);
-				g_nGPSSecond = atoi(pszSecond);
-				g_nGPSDay = atoi(szDate);
-				g_nGPSMonth = atoi(szMonth);
-				g_nGPSYear = atoi(pszYear) + 2000;	//y2.1k
+				g_nGPSHour = my_atol(szHour,NULL);
+				g_nGPSMinute = my_atol(szMinute,NULL);
+				g_nGPSSecond = my_atol(pszSecond,NULL);
+				g_nGPSDay = my_atol(szDate,NULL);
+				g_nGPSMonth = my_atol(szMonth,NULL);
+				g_nGPSYear = my_atol(pszYear,NULL) + 2000;	//y2.1k
 			}
 		}
 	}

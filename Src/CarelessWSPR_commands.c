@@ -6,6 +6,7 @@
 #include "CarelessWSPR_commands.h"
 #include "CarelessWSPR_settings.h"
 #include "maidenhead.h"
+#include "util_altlib.h"
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"
 
@@ -72,6 +73,28 @@ static void _cmdPutString ( const IOStreamIF* pio, const char* pStr )
 }
 
 
+static void _cmdPutCRLF ( const IOStreamIF* pio )
+{
+	_cmdPutString ( pio, "\r\n" );
+}
+
+
+static void _cmdPutInt ( const IOStreamIF* pio, long val, int padding )
+{
+	char ach[16];
+	my_itoa_sortof ( ach, val, padding );
+	_cmdPutString ( pio, ach );
+}
+
+
+static void _cmdPutFloat ( const IOStreamIF* pio, float val )
+{
+	char ach[20];
+	my_ftoa ( ach, val );
+	_cmdPutString ( pio, ach );
+}
+
+
 //simple parser of an integer value (can be hex with '0x' prefix)
 static uint32_t _parseInt ( const char* pszToken )
 {
@@ -129,7 +152,7 @@ static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens
 	{
 		//emit help information for this one command
 		_cmdPutString ( pio, g_aceCommands[nIdx]._pszHelp );
-		_cmdPutString ( pio, "\r\n" );
+		_cmdPutCRLF(pio);
 	}
 	else
 	{
@@ -146,7 +169,7 @@ static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens
 		for ( nIdx = 0; nIdx < g_nAceCommands; ++nIdx )
 		{
 			_cmdPutString ( pio, g_aceCommands[nIdx]._pszCommand );
-			_cmdPutString ( pio, "\r\n" );
+			_cmdPutCRLF(pio);
 		}
 	}
 
@@ -163,48 +186,58 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	{
 		//list all settings and their current value
 
-		char achText[80];
-
 		//RTC date time
 		RTC_TimeTypeDef sTime;
 		RTC_DateTypeDef sDate;
 		HAL_RTC_GetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
 		HAL_RTC_GetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
-		sprintf ( achText, "datetime:  %04u-%02u-%02u %02u:%02u:%02u\r\n",
-				sDate.Year + 2000, sDate.Month, sDate.Date,
-				sTime.Hours, sTime.Minutes, sTime.Seconds );
-		_cmdPutString ( pio, achText );
+		_cmdPutString ( pio, "datetime:  " );
+		_cmdPutInt ( pio, sDate.Year + 2000, 4 );
+		_cmdPutChar ( pio, '-' );
+		_cmdPutInt ( pio, sDate.Month, 2 );
+		_cmdPutChar ( pio, '-' );
+		_cmdPutInt ( pio, sDate.Date, 2 );
+		_cmdPutChar ( pio, ' ' );
+		_cmdPutInt ( pio, sTime.Hours, 2 );
+		_cmdPutChar ( pio, ':' );
+		_cmdPutInt ( pio, sTime.Minutes, 2 );
+		_cmdPutChar ( pio, ':' );
+		_cmdPutInt ( pio, sTime.Seconds, 2 );
+		_cmdPutCRLF(pio);
 
-		sprintf ( achText, "freq:  %lu\r\n", psettings->_dialFreqHz );
-		_cmdPutString ( pio, achText );
-
+		_cmdPutString ( pio, "freq:  " );
+		_cmdPutInt ( pio, psettings->_dialFreqHz, 0 );
+		_cmdPutCRLF(pio);
 		_cmdPutString ( pio, "band:  " );
 		if ( psettings->_nSubBand < 0 )
 		{
-			_cmdPutString ( pio, "random\r\n" );
+			_cmdPutString ( pio, "random" );
 		}
 		else
 		{
-			sprintf ( achText, "freq:  %ld\r\n", psettings->_nSubBand );
-			_cmdPutString ( pio, achText );
+			_cmdPutInt ( pio, psettings->_nSubBand, 0 );
 		}
+		_cmdPutCRLF(pio);
+		_cmdPutString ( pio, "duty:  " );
+		_cmdPutInt ( pio, psettings->_nDutyPct, 0 );
+		_cmdPutCRLF(pio);
 
-		sprintf ( achText, "duty:  %ld\r\n", psettings->_nDutyPct );
-		_cmdPutString ( pio, achText );
+		_cmdPutString ( pio, "callsign:  " );
+		_cmdPutString ( pio, psettings->_achCallSign );
+		_cmdPutCRLF(pio);
+		_cmdPutString ( pio, "maidenhead:  " );
+		_cmdPutString ( pio, psettings->_achMaidenhead );
+		_cmdPutCRLF(pio);
+		_cmdPutString ( pio, "power:  " );
+		_cmdPutInt ( pio, psettings->_nTxPowerDbm, 0 );
+		_cmdPutCRLF(pio);
 
-		sprintf ( achText, "callsign:  %s\r\n", psettings->_achCallSign );
-		_cmdPutString ( pio, achText );
-		sprintf ( achText, "maidenhead:  %s\r\n", psettings->_achMaidenhead );
-		_cmdPutString ( pio, achText );
-
-		sprintf ( achText, "power:  %ld\r\n", psettings->_nTxPowerDbm );
-		_cmdPutString ( pio, achText );
-
-
-		sprintf ( achText, "gpson:  %ld\r\n", psettings->_bUseGPS );
-		_cmdPutString ( pio, achText );
-		sprintf ( achText, "gpsrate:  %ld\r\n", psettings->_nGPSbitRate );
-		_cmdPutString ( pio, achText );
+		_cmdPutString ( pio, "gpson:  " );
+		_cmdPutInt ( pio, psettings->_bUseGPS, 0 );
+		_cmdPutCRLF(pio);
+		_cmdPutString ( pio, "gpsrate:  " );
+		_cmdPutInt ( pio, psettings->_nGPSbitRate, 0 );
+		_cmdPutCRLF(pio);
 
 		return CMDPROC_SUCCESS;
 	}
@@ -241,19 +274,19 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		//set the RTC right now
 		RTC_TimeTypeDef sTime;
 		RTC_DateTypeDef sDate;
-		sTime.Hours = strtoul ( &pszTime[0], NULL, 10 );
-		sTime.Minutes = strtoul ( &pszTime[3], NULL, 10 );
-		sTime.Seconds = strtoul ( &pszTime[6], NULL, 10 );
+		sTime.Hours = my_atoul ( &pszTime[0], NULL );
+		sTime.Minutes = my_atoul ( &pszTime[3], NULL );
+		sTime.Seconds = my_atoul ( &pszTime[6], NULL );
 		sDate.WeekDay = RTC_WEEKDAY_SUNDAY;	//(arbitrary)
-		sDate.Date = strtoul ( &pszValue[8], NULL, 10 );
-		sDate.Month = strtoul ( &pszValue[5], NULL, 10 );
-		sDate.Year = strtoul ( &pszValue[0], NULL, 10 ) - 2000;
+		sDate.Date = my_atoul ( &pszValue[8], NULL );
+		sDate.Month = my_atoul ( &pszValue[5], NULL );
+		sDate.Year = my_atoul ( &pszValue[0], NULL ) - 2000;
 		HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
 		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 	}
 	else if ( 0 == strcmp ( "freq", pszSetting ) )
 	{
-		long unsigned int freq = strtoul ( pszValue, NULL, 10 );
+		long unsigned int freq = my_atoul ( pszValue, NULL );
 		if ( freq < 7200 || freq > 200000000 )
 		{
 			_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
@@ -266,7 +299,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	}
 	else if ( 0 == strcmp ( "band", pszSetting ) )
 	{
-		long int band = strtoul ( pszValue, NULL, 10 );
+		long int band = my_atol ( pszValue, NULL );
 		if ( band < 0 )
 			band = -1;
 		if ( band > 32 )
@@ -281,7 +314,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	}
 	else if ( 0 == strcmp ( "duty", pszSetting ) )
 	{
-		long int duty = strtoul ( pszValue, NULL, 10 );
+		long int duty = my_atol ( pszValue, NULL );
 		if ( duty < 0 || duty > 100 )
 		{
 			_cmdPutString ( pio, "duty must be 0 - 100\r\n" );
@@ -322,7 +355,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	}
 	else if ( 0 == strcmp ( "power", pszSetting ) )
 	{
-		long int power = strtoul ( pszValue, NULL, 10 );
+		long int power = my_atol ( pszValue, NULL );
 		if ( power < 0 || power > 60 )
 		{
 			_cmdPutString ( pio, "power must be 0 - 60\r\n" );
@@ -336,13 +369,13 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	}
 	else if ( 0 == strcmp ( "gpson", pszSetting ) )
 	{
-		long int gpson = strtoul ( pszValue, NULL, 10 );
+		long int gpson = my_atol ( pszValue, NULL );
 		psettings->_bUseGPS = gpson ? 1 : 0;
 //XXX activate/deactivate GPS
 	}
 	else if ( 0 == strcmp ( "gpsrate", pszSetting ) )
 	{
-		long int rate = strtoul ( pszValue, NULL, 10 );
+		long int rate = my_atol ( pszValue, NULL );
 		if ( rate < 300 || rate > 115200 )
 		{
 			_cmdPutString ( pio, "rate must be 200 - 115200\r\n" );
@@ -443,24 +476,34 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 {
 	//list what we've got
 	_cmdPutString ( pio, "diagnostic vars:\r\n" );
-	char ach[80];
-	sprintf ( ach, "Heap: free now: %u, min free ever: %u\r\n", g_nHeapFree, g_nMinEverHeapFree );
-	_cmdPutString ( pio, ach );
 
-	sprintf ( ach, "GPS max RX queue: %u\r\n", g_nMaxGPSRxQueue );
-	_cmdPutString ( pio, ach );
+	_cmdPutString ( pio, "Heap: free now: " );
+	_cmdPutInt ( pio, g_nHeapFree, 0 );
+	_cmdPutString ( pio, ", min free ever: " );
+	_cmdPutInt ( pio, g_nMinEverHeapFree, 0 );
+	_cmdPutCRLF(pio);
 
-	sprintf ( ach, "Monitor max RX queue %u, max TX queue %u\r\n", g_nMaxCDCRxQueue, g_nMaxCDCTxQueue );
-	_cmdPutString ( pio, ach );
+	_cmdPutString ( pio, "GPS max RX queue: " );
+	_cmdPutInt ( pio, g_nMaxGPSRxQueue, 0 );
+	_cmdPutCRLF(pio);
 
-	sprintf ( ach, "Task: Default: min stack free %u\r\n", g_nMinStackFreeDefault*sizeof(uint32_t) );
-	_cmdPutString ( pio, ach );
+	_cmdPutString ( pio, "Monitor max RX queue: " );
+	_cmdPutInt ( pio, g_nMaxCDCRxQueue, 0 );
+	_cmdPutString ( pio, ", max TX queue: " );
+	_cmdPutInt ( pio, g_nMaxCDCTxQueue, 0 );
+	_cmdPutCRLF(pio);
 
-	sprintf ( ach, "Task: Monitor: min stack free %u\r\n", g_nMinStackFreeMonitor*sizeof(uint32_t) );
-	_cmdPutString ( pio, ach );
+	_cmdPutString ( pio, "Task: Default: min stack free: " );
+	_cmdPutInt ( pio, g_nMinStackFreeDefault*sizeof(uint32_t), 0 );
+	_cmdPutCRLF(pio);
 
-	sprintf ( ach, "Task: GPS: min stack free %u\r\n", g_nMinStackFreeGPS*sizeof(uint32_t) );
-	_cmdPutString ( pio, ach );
+	_cmdPutString ( pio, "Task: Monitor: min stack free: " );
+	_cmdPutInt ( pio, g_nMinStackFreeMonitor*sizeof(uint32_t), 0 );
+	_cmdPutCRLF(pio);
+
+	_cmdPutString ( pio, "Task: GPS: min stack free: " );
+	_cmdPutInt ( pio, g_nMinStackFreeGPS*sizeof(uint32_t), 0 );
+	_cmdPutCRLF(pio);
 
 #if USE_FREERTOS_HEAP_IMPL
 //heapwalk suspends all tasks, so not good here
@@ -479,29 +522,38 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 
 static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens )
 {
-	char ach[80];
-
 	if ( g_bLock )//0 != g_nGPSYear )
 	{
 		//emit gps timestamp
-		sprintf ( ach, "GPS TS:  %04d-%02d-%02d %02d:%02d:%02d\r\n",
-				g_nGPSYear, g_nGPSMonth, g_nGPSDay, 
-				g_nGPSHour, g_nGPSMinute, g_nGPSSecond );
-		_cmdPutString ( pio, ach );
+		_cmdPutString ( pio, "GPS TS:  " );
+		_cmdPutInt ( pio, g_nGPSYear, 4 );
+		_cmdPutChar ( pio, '-' );
+		_cmdPutInt ( pio, g_nGPSMonth, 2 );
+		_cmdPutChar ( pio, '-' );
+		_cmdPutInt ( pio, g_nGPSDay, 2 );
+		_cmdPutChar ( pio, ' ' );
+		_cmdPutInt ( pio, g_nGPSHour, 2 );
+		_cmdPutChar ( pio, ':' );
+		_cmdPutInt ( pio, g_nGPSMinute, 2 );
+		_cmdPutChar ( pio, ':' );
+		_cmdPutInt ( pio, g_nGPSSecond, 2 );
+		_cmdPutCRLF(pio);
 
 		//emit location
-		sprintf ( ach, "GPS Pos:  lat %f, lon %f", g_fLat, g_fLon );
-		_cmdPutString ( pio, ach );
+		_cmdPutString ( pio, "GPS Pos:  lat " );
+		_cmdPutFloat ( pio, g_fLat );
+		_cmdPutString ( pio, ", lon " );
+		_cmdPutFloat ( pio, g_fLon );
 		char ach[8];
 		if ( ! toMaidenhead ( g_fLat, g_fLon, ach, 6 ) )
 		{
-			_cmdPutString ( pio, "  toMaidenhead() failed\r\n" );
+			_cmdPutString ( pio, "toMaidenhead() failed\r\n" );
 		}
 		else
 		{
 			_cmdPutString ( pio, ", maidenhead " );
 			_cmdPutString ( pio, ach );
-			_cmdPutString ( pio, "\r\n" );
+			_cmdPutCRLF(pio);
 		}
 	}
 	else
@@ -617,8 +669,8 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 		}
 
 		//finished!
-		_cmdPutString ( pio, "\r\n" );
-		
+		_cmdPutCRLF(pio);
+
 		nIdx += nToDo;
 	}
 

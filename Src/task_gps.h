@@ -17,7 +17,7 @@ extern "C" {
 #include "system_interfaces.h"
 
 extern osThreadId g_thGPS;
-extern uint32_t g_tbGPS[ 512 ];
+extern uint32_t g_tbGPS[ 128 ];
 extern osStaticThreadDef_t g_tcbGPS;
 
 extern const IOStreamIF* g_pGPSIOIf;	//the IO device to which the monitor is attached
