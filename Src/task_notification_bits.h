@@ -31,6 +31,11 @@ enum TaskNotificationBits
 	//0x00000008,	//reserved; maybe for errors?
 
 	TNB_LIGHTSCHANGED = 0x00010000,		//the lights have changed
+
+	//bits for the WSPR process
+	TNB_WSPRSTART = 0x00010000,		//start the transmission
+	TNB_WSPRNEXTBIT = 0x00020000,	//send next bit in transmission
+	TNB_WSPR_GPSLOCK = 0x00040000,	//GPS lock status changed
 };
 
 

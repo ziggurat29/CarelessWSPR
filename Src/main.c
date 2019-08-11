@@ -38,6 +38,9 @@
 
 #include "task_monitor.h"
 #include "task_gps.h"
+#include "task_wspr.h"
+
+#include "maidenhead.h"
 
 
 #ifndef COUNTOF
@@ -403,9 +406,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 4095;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 0;
+  htim4.Init.Period = 11999;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -536,6 +539,12 @@ void __startWorkerTasks ( void )
 	osThreadStaticDef(taskGPS, thrdfxnGPSTask, osPriorityNormal, 0, COUNTOF(g_tbGPS), g_tbGPS, &g_tcbGPS);
 	g_thGPS = osThreadCreate(osThread(taskGPS), NULL);
 	}
+
+	//kick off WSPR thread, which performs WSPR sending
+	{
+	osThreadStaticDef(taskWSPR, thrdfxnWSPRTask, osPriorityNormal, 0, COUNTOF(g_tbWSPR), g_tbWSPR, &g_tcbWSPR);
+	g_thWSPR = osThreadCreate(osThread(taskWSPR), NULL);
+	}
 }
 
 
@@ -590,6 +599,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 
 
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
+{
+	//We use the RTC alarm to schedule a WSPR transmission start
+	WSPR_RTC_Alarm();
+}
+
+
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -608,6 +625,9 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
+
+	//initialize the WSPR engine
+	WSPR_Initialize();
 
 	//crank up serial ports
 	//XXX (I wonder if this is best way up in main at least for USB; I ask
@@ -671,6 +691,7 @@ void StartDefaultTask(void const * argument)
 		g_nMinStackFreeDefault = uxTaskGetStackHighWaterMark ( defaultTaskHandle );
 		g_nMinStackFreeMonitor = uxTaskGetStackHighWaterMark ( g_thMonitor );
 		g_nMinStackFreeGPS = uxTaskGetStackHighWaterMark ( g_thGPS );
+		g_nMinStackFreeWSPR = uxTaskGetStackHighWaterMark ( g_thWSPR );
 		//XXX others
 #endif
 		
@@ -706,6 +727,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+
+	else if (htim->Instance == TIM4)
+	{
+		//we use TIM4 for WSPR bit pacing
+		WSPR_Timer_Timeout();
+	}
 
   /* USER CODE END Callback 1 */
 }

@@ -12,12 +12,14 @@
 #include "util_altlib.h"
 #include "stm32f1xx_hal.h"
 
+#include "task_wspr.h"	//to notify of lock changes
+
 #ifndef COUNTOF
 #define COUNTOF(arr) (sizeof(arr)/sizeof(arr[0]))
 #endif
 
 
-//the task that runs an interactive monitor on the USB data
+//the task that consumes GPS data on the serial port
 osThreadId g_thGPS = NULL;
 uint32_t g_tbGPS[ 128 ];
 osStaticThreadDef_t g_tcbGPS;
@@ -256,6 +258,16 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 				g_nGPSMonth = my_atol(szMonth,NULL);
 				g_nGPSYear = my_atol(pszYear,NULL) + 2000;	//y2.1k
 			}
+
+			//now that we're done parsing, if the lock state changed, tell the
+			//WSPR task
+			if ( bLockedStateChanged )
+			{
+				BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+				xTaskNotifyFromISR ( g_thWSPR, TNB_WSPR_GPSLOCK, eSetBits, &xHigherPriorityTaskWoken );
+				portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+			}
+
 		}
 	}
 

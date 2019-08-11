@@ -32,6 +32,7 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 
 #ifdef DEBUG
 static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens );
 #endif
 
 static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens );
@@ -47,6 +48,7 @@ const CmdProcEntry g_aceCommands[] =
 	{ "dump", cmdhdlDump, "dump memory; dump {addr} {count}" },
 #ifdef DEBUG
 	{ "diag", cmdhdlDiag, "show diagnostic info (DEBUG build only)" },
+	{ "exp001", cmdhdlExp001, "experimental command (DEBUG build only)" },
 #endif
 	{ "gps", cmdhdlGps, "show GPS info (if any)" },
 
@@ -453,6 +455,7 @@ extern volatile int g_nMaxCDCRxQueue;
 extern volatile int g_nMinStackFreeDefault;
 extern volatile int g_nMinStackFreeMonitor;
 extern volatile int g_nMinStackFreeGPS;
+extern volatile int g_nMinStackFreeWSPR;
 
 #define USE_FREERTOS_HEAP_IMPL 1
 #if USE_FREERTOS_HEAP_IMPL
@@ -503,6 +506,10 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 
 	_cmdPutString ( pio, "Task: GPS: min stack free: " );
 	_cmdPutInt ( pio, g_nMinStackFreeGPS*sizeof(uint32_t), 0 );
+	_cmdPutCRLF(pio);
+
+	_cmdPutString ( pio, "Task: WSPR: min stack free: " );
+	_cmdPutInt ( pio, g_nMinStackFreeWSPR*sizeof(uint32_t), 0 );
 	_cmdPutCRLF(pio);
 
 #if USE_FREERTOS_HEAP_IMPL
@@ -678,3 +685,34 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 }
 
 
+
+//========================================================================
+//'exp001' command handler
+
+
+#ifdef DEBUG
+
+#include "task_wspr.h"
+
+//this is used for doing experiments during development
+static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens )
+{
+
+	const char* pszArg1 = pszszTokens;
+	if ( 0 == strcmp ( pszArg1, "on" ) )
+	{
+		//start (potentially) WSPR'ing at the next even minute
+		WSPR_StartWSPR();
+		_cmdPutString ( pio, "WSPR'ing started\r\n" );
+	}
+	else
+	{
+		//stop any WSPR'in
+		WSPR_StopWSPR();
+		_cmdPutString ( pio, "WSPR'ing stopped\r\n" );
+	}
+
+	return CMDPROC_SUCCESS;
+}
+
+#endif
