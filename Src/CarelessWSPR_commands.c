@@ -693,6 +693,7 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 #ifdef DEBUG
 
 #include "task_wspr.h"
+#include "wspr.h"
 
 //this is used for doing experiments during development
 static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens )
@@ -702,8 +703,18 @@ static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszToke
 	if ( 0 == strcmp ( pszArg1, "on" ) )
 	{
 		//start (potentially) WSPR'ing at the next even minute
-		WSPR_StartWSPR();
-		_cmdPutString ( pio, "WSPR'ing started\r\n" );
+		PersistentSettings* psettings = Settings_getStruct();
+		if ( wspr_encode ( g_abyWSPR, psettings->_achCallSign, 
+				psettings->_achMaidenhead, 
+				psettings->_nTxPowerDbm ) )
+		{
+			WSPR_StartWSPR();
+			_cmdPutString ( pio, "WSPR'ing started\r\n" );
+		}
+		else
+		{
+			_cmdPutString ( pio, "Failed to compute WSPR message!\r\n" );
+		}
 	}
 	else
 	{

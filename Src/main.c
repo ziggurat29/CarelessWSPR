@@ -41,6 +41,7 @@
 #include "task_wspr.h"
 
 #include "maidenhead.h"
+#include "wspr.h"
 
 
 #ifndef COUNTOF

@@ -9,6 +9,7 @@
 #include "CarelessWSPR_settings.h"
 #include "task_notification_bits.h"
 #include "lamps.h"
+#include "wspr.h"
 #include "maidenhead.h"
 
 #include "task_gps.h"	//for global status
@@ -193,7 +194,17 @@ void thrdfxnWSPRTask ( void const* argument )
 						//now, update the maidenhead
 						toMaidenhead ( g_fLat, g_fLon, psettings->_achMaidenhead, 4 );
 
-//XXX update our WSPR message
+						//now, update our WSPR message
+						if ( wspr_encode ( g_abyWSPR, psettings->_achCallSign, 
+								psettings->_achMaidenhead, psettings->_nTxPowerDbm ) )
+						{
+							//now start WSPRing
+							WSPR_StartWSPR();
+						}
+						else
+						{
+							//XXX horror
+						}
 					}
 				}
 				else	//lost lock
