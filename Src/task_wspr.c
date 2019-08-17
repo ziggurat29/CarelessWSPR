@@ -89,7 +89,7 @@ static void _impl_WSPR_ScheduleNext ( void )
 	sAlarm.Alarm = RTC_ALARM_A;
 	sAlarm.AlarmTime = sTime;
 	sAlarm.AlarmTime.Seconds = 0;	//always at start of minute
-	sAlarm.AlarmTime.Minutes = (sAlarm.AlarmTime.Minutes + 3) & 0xfe;
+	sAlarm.AlarmTime.Minutes = (sAlarm.AlarmTime.Minutes + 2) & 0xfe;
 	if ( sAlarm.AlarmTime.Minutes > 59 )	//check for rollover minute
 	{
 		sAlarm.AlarmTime.Minutes -= 60;
