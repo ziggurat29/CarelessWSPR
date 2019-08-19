@@ -189,6 +189,13 @@ void thrdfxnWSPRTask ( void const* argument )
 					HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
 					HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
+					//setting the time will break any pending alarms, so we
+					//must reschedule if needed
+					if ( g_bDoWSPR )	//if we are wspr'ing (and need alarm)
+					{
+						_impl_WSPR_ScheduleNext();	//reschedule it
+					}
+
 					if ( psettings->_bUseGPS )	//do we care about GPS?
 					{
 						//now, update the maidenhead
