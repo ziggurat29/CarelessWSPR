@@ -40,18 +40,23 @@ char* my_itoa_sortof ( char* psz, long val, int padding )
 	//we build the string backwards, then strrev at the end
 	if ( padding < 1 )	//no padding; conventional conversion
 	{
-		if ( val < 0 )
-		{
-			*pchNow++ = '-';
-			val = -val;
-		}
 		if ( 0 != val )
 		{
+			int bNegative = 0;
+			if ( val < 0 )
+			{
+				bNegative = 1;
+				val = -val;
+			}
 			while ( 0 != val )
 			{
 				div_t dv = div ( val, 10 );
 				*pchNow++ = '0' + dv.rem;
 				val = dv.quot;
+			}
+			if ( bNegative )
+			{
+				*pchNow++ = '-';
 			}
 		}
 		else
@@ -64,14 +69,14 @@ char* my_itoa_sortof ( char* psz, long val, int padding )
 	{
 		//in the padded case we track how many positions are left
 		//YYY can this be factored with the non-padded case?  it's so similar
-		if ( val < 0 )
-		{
-			*pchNow++ = '-';
-			--padding;
-			val = -val;
-		}
 		if ( 0 != val )
 		{
+			int bNegative = 0;
+			if ( val < 0 )
+			{
+				bNegative = 1;
+				val = -val;
+			}
 			while ( 0 != val && 0 != padding )
 			{
 				div_t dv = div ( val, 10 );
@@ -83,6 +88,10 @@ char* my_itoa_sortof ( char* psz, long val, int padding )
 			{
 				*pchNow++ = '0';
 				--padding;
+			}
+			if ( bNegative )
+			{
+				*pchNow++ = '-';
 			}
 		}
 		else
