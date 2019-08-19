@@ -41,6 +41,7 @@
 #include "task_wspr.h"
 
 #include "maidenhead.h"
+#include "si5351a.h"
 #include "wspr.h"
 
 
@@ -626,6 +627,9 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
+
+	//init the synth now
+	si5351aInit();
 
 	//initialize the WSPR engine
 	WSPR_Initialize();

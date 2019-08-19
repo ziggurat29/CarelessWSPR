@@ -10,6 +10,7 @@
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"
 
+#include "si5351a.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -436,6 +437,7 @@ static CmdProcRetval cmdhdlDeperist ( const IOStreamIF* pio, const char* pszszTo
 
 static CmdProcRetval cmdhdlReboot ( const IOStreamIF* pio, const char* pszszTokens )
 {
+	si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal; if any
 	_cmdPutString( pio, "rebooting\r\n" );
 	osDelay ( 500 );	//delay a little to let all that go out before we reset
 	NVIC_SystemReset();

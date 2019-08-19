@@ -11,6 +11,7 @@
 #include "lamps.h"
 #include "wspr.h"
 #include "maidenhead.h"
+#include "si5351a.h"
 
 #include "task_gps.h"	//for global status
 
@@ -130,7 +131,7 @@ void WSPR_RTC_Alarm ( void )
 
 void WSPR_Initialize ( void )
 {
-//XXX extinguish signal; if any
+	si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal; if any
 	StopBitClock();	//can be running at app startup
 	_impl_WSPR_CancelSchedule();	//unlikely at app startup, but ensure
 	g_bDoWSPR = 0;
@@ -257,7 +258,7 @@ void thrdfxnWSPRTask ( void const* argument )
 						g_nSymbolIndex = 0;
 						uint64_t nToneCentiHz = g_nBaseFreq * 100ULL + 
 								g_abyWSPR[g_nSymbolIndex] * 146ULL;
-//XXX emit signal
+						si5351aSetFrequency ( nToneCentiHz );
 _ledOnGn();
 						g_nSymbolIndex = 1;	//prepare for next symbol
 					}
@@ -273,7 +274,7 @@ _ledOnGn();
 				if ( g_nSymbolIndex >= 162 )	//done; turn off
 				{
 _ledOffGn();
-//XXX terminate signal
+					si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal
 					StopBitClock();	//stop shifting bits
 					g_nSymbolIndex = 0;	//setup to start at beginning next time
 				}
@@ -284,7 +285,7 @@ _ledOffGn();
 					//sub-Hertz precision we need
 					uint64_t nToneCentiHz = g_nBaseFreq * 100ULL + 
 							g_abyWSPR[g_nSymbolIndex] * 146ULL;
-//XXX emit signal
+					si5351aSetFrequency ( nToneCentiHz );
 _ledToggleGn();
 					++g_nSymbolIndex;
 				}
