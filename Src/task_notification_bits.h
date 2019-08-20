@@ -30,6 +30,7 @@ enum TaskNotificationBits
 	//0x00000004,	//reserved; maybe for errors?
 	//0x00000008,	//reserved; maybe for errors?
 
+	//bits for the default process
 	TNB_LIGHTSCHANGED = 0x00010000,		//the lights have changed
 
 	//bits for the WSPR process

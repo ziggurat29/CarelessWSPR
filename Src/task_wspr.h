@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include "cmsis_os.h"
+#include "task_notification_bits.h"
 
 extern osThreadId g_thWSPR;
 extern uint32_t g_tbWSPR[ 128 ];
@@ -22,10 +23,13 @@ extern uint8_t g_abyWSPR[162];
 //called once at reset to get things ready
 void WSPR_Initialize ( void );
 
-//start and stop emitting WSPR messages; note, presumes g_abyWSPR has been set
-//up with a valid message!
+//start and stop emitting WSPR messages
 void WSPR_StartWSPR ( void );
 void WSPR_StopWSPR ( void );
+
+//if the WSPR message needs re-encoding (e.g. data changed), cause that to
+//happen prior to transmission.
+void WSPR_ReEncode ( void );
 
 
 //called when the timer resource expires (at ISR time)

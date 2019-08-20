@@ -3,7 +3,6 @@
 
 
 #include "task_gps.h"
-#include "task_notification_bits.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -263,9 +262,7 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 			//WSPR task
 			if ( bLockedStateChanged )
 			{
-				BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-				xTaskNotifyFromISR ( g_thWSPR, TNB_WSPR_GPSLOCK, eSetBits, &xHigherPriorityTaskWoken );
-				portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+				xTaskNotify ( g_thWSPR, TNB_WSPR_GPSLOCK, eSetBits );
 			}
 
 		}

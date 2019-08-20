@@ -9,6 +9,7 @@ extern "C" {
 
 #include "cmsis_os.h"
 #include "system_interfaces.h"
+#include "task_notification_bits.h"
 
 extern osThreadId g_thMonitor;
 extern uint32_t g_tbMonitor[ 128 ];

@@ -11,6 +11,11 @@
 #include "cmsis_os.h"
 
 #include "si5351a.h"
+
+#include "task_gps.h"
+#include "task_wspr.h"
+
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -339,7 +344,8 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		else
 		{
 			strcpy ( psettings->_achCallSign, pszValue );
-//XXX cause WSPR message to be re-computed
+			//cause WSPR message to be re-computed
+			WSPR_ReEncode();
 		}
 	}
 	else if ( 0 == strcmp ( "maidenhead", pszSetting ) )
@@ -353,7 +359,8 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		else
 		{
 			strcpy ( psettings->_achMaidenhead, pszValue );
-//XXX cause WSPR message to be re-computed
+			//cause WSPR message to be re-computed
+			WSPR_ReEncode();
 		}
 	}
 	else if ( 0 == strcmp ( "power", pszSetting ) )
@@ -367,7 +374,8 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		else
 		{
 			psettings->_nTxPowerDbm = power;
-//XXX cause WSPR message to be re-computed
+			//cause WSPR message to be re-computed
+			WSPR_ReEncode();
 		}
 	}
 	else if ( 0 == strcmp ( "gpson", pszSetting ) )

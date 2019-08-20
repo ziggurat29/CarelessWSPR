@@ -7,7 +7,6 @@
 #include "cmsis_os.h"
 
 #include "CarelessWSPR_settings.h"
-#include "task_notification_bits.h"
 #include "lamps.h"
 #include "wspr.h"
 #include "maidenhead.h"
@@ -31,9 +30,49 @@ osStaticThreadDef_t g_tcbWSPR;
 //the WSPR message we transmit
 uint8_t g_abyWSPR[162];
 //state machine
-int g_bDoWSPR = 0;		//boolean; should we be WSPR'ing sweet nothings at all
-int g_nSymbolIndex;		//which of g_abyWSPR are we on
-uint32_t g_nBaseFreq;	//this base frequency of this sub-band; Hz
+//XXX state wspr'ing
+//XXX state ref signal'ing
+enum WSPR_FLAGS
+{
+	WF_DOIT = 1,	 //should we be WSPR'ing sweet nothings at all
+	WF_REENCODE = 2,	//need to re-encode the WSPR message first
+};
+uint32_t g_nWSPRFlags = 0;	//any of several flags
+int g_nWSPRSymbolIndex;		//which of g_abyWSPR are we on
+uint32_t g_nWSPRBaseFreq;	//this base frequency of this sub-band; Hz
+
+
+
+uint32_t _impl_testFlag ( uint32_t n )
+{
+	uint32_t val;
+	UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+	val = g_nWSPRFlags & n;
+	taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+	return val;
+}
+
+
+uint32_t _impl_clearFlag ( uint32_t n )
+{
+	uint32_t val;
+	UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+	val = g_nWSPRFlags & n;	//TAC
+	g_nWSPRFlags &= ~n;
+	taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+	return val;
+}
+
+
+uint32_t _impl_setFlag ( uint32_t n )
+{
+	uint32_t val;
+	UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+	val = g_nWSPRFlags & n;	//TAS
+	g_nWSPRFlags |= n;
+	taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+	return val;
+}
 
 
 
@@ -134,15 +173,15 @@ void WSPR_Initialize ( void )
 	si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal; if any
 	StopBitClock();	//can be running at app startup
 	_impl_WSPR_CancelSchedule();	//unlikely at app startup, but ensure
-	g_bDoWSPR = 0;
+	g_nWSPRFlags = WF_REENCODE;		//will need an initial encode
 }
 
 
 void WSPR_StartWSPR ( void )
 {
-	if ( ! g_bDoWSPR )	//not if we're already doing it
+	if ( ! _impl_testFlag ( WF_DOIT ) )	//not if we're already doing it
 	{
-		g_bDoWSPR = 1;
+		_impl_setFlag ( WF_DOIT );
 		_impl_WSPR_ScheduleNext();
 	}
 }
@@ -151,9 +190,14 @@ void WSPR_StartWSPR ( void )
 void WSPR_StopWSPR ( void )
 {
 	_impl_WSPR_CancelSchedule();
-	g_bDoWSPR = 0;
+	_impl_clearFlag ( WF_DOIT );
 }
 
+
+void WSPR_ReEncode ( void )
+{
+	_impl_setFlag ( WF_REENCODE );
+}
 
 
 //implementation for the WSPR task
@@ -191,8 +235,8 @@ void thrdfxnWSPRTask ( void const* argument )
 					HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
 					//setting the time will break any pending alarms, so we
-					//must reschedule if needed
-					if ( g_bDoWSPR )	//if we are wspr'ing (and need alarm)
+					//must reschedule alarms if needed
+					if ( _impl_testFlag ( WF_DOIT ) )	//if we are wspr'ing (and need alarm)
 					{
 						_impl_WSPR_ScheduleNext();	//reschedule it
 					}
@@ -201,18 +245,9 @@ void thrdfxnWSPRTask ( void const* argument )
 					{
 						//now, update the maidenhead
 						toMaidenhead ( g_fLat, g_fLon, psettings->_achMaidenhead, 4 );
+						_impl_setFlag ( WF_REENCODE );	//because we changed the data
 
-						//now, update our WSPR message
-						if ( wspr_encode ( g_abyWSPR, psettings->_achCallSign, 
-								psettings->_achMaidenhead, psettings->_nTxPowerDbm ) )
-						{
-							//now start WSPRing
-							WSPR_StartWSPR();
-						}
-						else
-						{
-							//XXX horror
-						}
+						WSPR_StartWSPR();
 					}
 				}
 				else	//lost lock
@@ -225,7 +260,27 @@ void thrdfxnWSPRTask ( void const* argument )
 			//if our scheduled WSPR start has occurred, start
 			if ( ulNotificationValue & TNB_WSPRSTART )
 			{
-				if ( g_bDoWSPR )	//should be wspr'ing at all?
+				int doitnow = _impl_testFlag ( WF_DOIT );
+
+				//first, update our WSPR message if needed
+				if ( _impl_testFlag ( WF_REENCODE ) )
+				{
+					PersistentSettings* psettings = Settings_getStruct();
+					if ( wspr_encode ( g_abyWSPR, psettings->_achCallSign, 
+							psettings->_achMaidenhead, psettings->_nTxPowerDbm ) )
+					{
+						//success!
+						_impl_clearFlag ( WF_REENCODE );
+					}
+					else
+					{
+						//horror; do not proceed with bad message
+						doitnow = 0;
+					}
+				}
+
+				//now we can proceed with the wspr'ing
+				if ( doitnow )	//but should be wspr'ing?
 				{
 					//randomize duty cycle selection
 					int chance = rand() / (RAND_MAX/100);
@@ -250,44 +305,45 @@ void thrdfxnWSPRTask ( void const* argument )
 						//Note; adjusted 100 to 99 because there is 1/3 sub-
 						//band extra in the 200 Hz, and this spreads that
 						//evenly at the top and bottom.  Probably unneeded.
-						g_nBaseFreq = psettings->_dialFreqHz + 1500 - 99 +
+						g_nWSPRBaseFreq = psettings->_dialFreqHz + 1500 - 99 +
 								nIdxSubBand * 6;
 						//emit this first symbol's tone now
 						//note, the frequency is in centihertz so we can get
 						//the sub-Hertz precision we need
-						g_nSymbolIndex = 0;
-						uint64_t nToneCentiHz = g_nBaseFreq * 100ULL + 
-								g_abyWSPR[g_nSymbolIndex] * 146ULL;
+						g_nWSPRSymbolIndex = 0;
+						uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL + 
+								g_abyWSPR[g_nWSPRSymbolIndex] * 146ULL;
 						si5351aSetFrequency ( nToneCentiHz );
 _ledOnGn();
-						g_nSymbolIndex = 1;	//prepare for next symbol
+						g_nWSPRSymbolIndex = 1;	//prepare for next symbol
 					}
-					//irrespective of whether we are actually transmitting this
-					//period, we should schedule to check in the next one.
-					_impl_WSPR_ScheduleNext();
 				}
+
+				//irrespective of whether we are actually transmitting this
+				//period, we should schedule to check in the next one.
+				_impl_WSPR_ScheduleNext();
 			}
 
 			//if it is time to shift out the next WSPR symbol, do so
 			if ( ulNotificationValue & TNB_WSPRNEXTBIT )
 			{
-				if ( g_nSymbolIndex >= 162 )	//done; turn off
+				if ( g_nWSPRSymbolIndex >= 162 )	//done; turn off
 				{
 _ledOffGn();
 					si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal
 					StopBitClock();	//stop shifting bits
-					g_nSymbolIndex = 0;	//setup to start at beginning next time
+					g_nWSPRSymbolIndex = 0;	//setup to start at beginning next time
 				}
 				else
 				{
 					//emit this next symbol's tone now
 					//note, the frequency is in centihertz so we can get the
 					//sub-Hertz precision we need
-					uint64_t nToneCentiHz = g_nBaseFreq * 100ULL + 
-							g_abyWSPR[g_nSymbolIndex] * 146ULL;
+					uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL + 
+							g_abyWSPR[g_nWSPRSymbolIndex] * 146ULL;
 					si5351aSetFrequency ( nToneCentiHz );
 _ledToggleGn();
-					++g_nSymbolIndex;
+					++g_nWSPRSymbolIndex;
 				}
 			}
 		}
