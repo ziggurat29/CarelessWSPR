@@ -44,6 +44,8 @@
 #include "si5351a.h"
 #include "wspr.h"
 
+#include "backup_registers.h"
+
 
 #ifndef COUNTOF
 #define COUNTOF(arr) (sizeof(arr)/sizeof(arr[0]))
@@ -186,12 +188,26 @@ int main(void)
 	//of making it obvious that this chore simply must be done.
 	XXX_USBCDC_PresenceHack();	//this does nothing real; do not delete
 
+	//ugly hack to get around generated code; if we detect that we have
+	//already set the board up (by way of a flag held in the 'backup
+	//registers', then skip the SystemClock_Config(), because that will blast
+	//the contents of those backup registers!  Instead, we will take it as
+	//read that the clocks have been configed already, and that we are probably
+	//just doing a warm boot.
+	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+	if ( ! ( flags & FLAG_HAS_CONFIGED_CLOCKS ) )
+	{	//beginning of ugly hack
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+		HAL_PWR_EnableBkUpAccess();
+		flags |= FLAG_HAS_CONFIGED_CLOCKS;
+		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+		HAL_PWR_DisableBkUpAccess();
+	}	//end of ugly hack
 
 	//do a dummy alloc to cause the heap to be init'ed and so the memory stats as well
 	vPortFree ( pvPortMalloc ( 0 ) );
@@ -361,7 +377,13 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-    
+	//we use one of the 'backup registers' to store some flags; the 'RTC set'
+	//is used to indicate we have set the clock at some point.  If this flag is
+	//set in the backup register, then we have /not power-cycled the board, and
+	//so we avoid the generated code, below which will blast the RTC setting.
+	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+	if ( ! ( flags & FLAG_HAS_SET_RTC ) )
+	{	//ugly hack to skip needlessly setting the RTC via generated code
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date 
@@ -384,6 +406,7 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
+	}	//end ugly hack to avoid some generated code
 
   /* USER CODE END RTC_Init 2 */
 

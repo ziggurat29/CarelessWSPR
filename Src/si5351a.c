@@ -1,6 +1,6 @@
 //==============================================================
 //This provides a simplified interface to the Si5351A3 device.
-//This is part of the BluepillSi5351Exp001 project.
+//This is part of the CarelessWSPR project.
 //This was derived from code found at 
 //https://www.qrp-labs.com/synth/si5351ademo.html
 
@@ -154,7 +154,7 @@ void si5351aOutputOff(uint8_t clk)
 
 
 
-void si5351aCalcParams ( SYNTH_PARAMS* pparams, uint64_t freqCentiHz )
+void si5351aCalcParams ( SYNTH_PARAMS* pparams, uint64_t freqCentiHz, int32_t nSynthCorrPPM )
 {
 	//these are intermediates for computing the params
 	uint64_t pllFreq;
@@ -221,16 +221,60 @@ void si5351aCalcParams ( SYNTH_PARAMS* pparams, uint64_t freqCentiHz )
 	f = l;						// mult is an integer that must be in the range 15..90
 	f *= 1048575;				// num and denom are the fractional parts, the numerator and denominator
 	f /= xtalFreq;				// each is 20 bits (range 0..1048575)
+
+f += nSynthCorrPPM * 1048575.0F / 1000000.0F;
+if ( f > 1048575 )
+{
+	f -= 1048575;
+	++pparams->mult;
+}
+else if ( f < 0 )
+{
+	f += 1048575;
+	--pparams->mult;
+}
+
 	pparams->num = f;			// the actual multiplier is  mult + num / denom
 	pparams->denom = 1048575;	// For simplicity we set the denominator to the maximum 1048575
 }
 
+
+/*
+//XXX
+int32_t _nSynthCorrPPM = 0;
+
+	uint32_t xtalFreq = XTAL_FREQ;
+	// Determine the multiplier to get to the required pllFrequency
+	// It has three parts:
+	// mult is an integer that must be in the range 15..90
+	// num and denom are the fractional parts, the numerator and denominator
+	// each is 20 bits (range 0..1048575)
+	// the actual multiplier is  mult + num / denom
+	// For simplicity we set the denominator to the maximum 1048575
+	pparams->mult = pllFreq / xtalFreq;		//'a'
+	float f = (pllFreq % xtalFreq) * 1048575.0F / xtalFreq;
+	if ( _nSynthCorrPPM < 0 )
+	{
+		f += _nSynthCorrPPM;
+	}
+	else
+	{
+		f -= _nSynthCorrPPM;
+		--pparams->mult;
+	}
+	pparams->num = f;
+	pparams->denom = 1048575;
+*/
 
 
 void si5351aInit ( void )
 {
 	uint8_t val;
 	
+	//setup the crystal oscillator
+	impl_writeOne ( SI_XTAL_LOAD, (2<<6)|0b010010 );	//8pf
+//	impl_writeOne ( SI_XTAL_LOAD, (3<<6)|0b010010 );	//10pf
+
 	//set the disabled state for CLK0 to 'low'
 	val = impl_ReadOne ( SI_CLK30_DISSTAT );
 	val &= ~(3 << (0 * 2));
@@ -250,10 +294,10 @@ void si5351aInit ( void )
 // This example sets up PLL A
 // and MultiSynth 0
 // and produces the output on CLK0
-void si5351aSetFrequency ( uint64_t freqCentiHz )
+void si5351aSetFrequency ( uint64_t freqCentiHz, int32_t nSynthCorrPPM, int bResetPLL )
 {
 	SYNTH_PARAMS params;
-	si5351aCalcParams ( &params, freqCentiHz );
+	si5351aCalcParams ( &params, freqCentiHz, nSynthCorrPPM );
 
 	// Set up PLL A with the calculated multiplication ratio
 	setupPLL ( SI_SYNTH_PLL_A, params.mult, params.num, params.denom );
@@ -267,7 +311,10 @@ void si5351aSetFrequency ( uint64_t freqCentiHz )
 
 	// Reset the PLL. This causes a glitch in the output. For small changes to 
 	// the parameters, you don't need to reset the PLL, and there is no glitch
-	//impl_writeOne ( SI_PLL_RESET, 0xA0 );
+	if ( bResetPLL )	//only if requested
+	{
+		impl_writeOne ( SI_PLL_RESET, 0xA0 );
+	}
 
 	//set the disabled state for CLK0 to 'low'
 	uint8_t val = impl_ReadOne ( SI_CLK30_DISSTAT );

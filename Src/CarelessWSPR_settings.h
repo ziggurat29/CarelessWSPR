@@ -61,6 +61,8 @@ typedef struct
 	//GPS bit rate
 	int32_t		_nGPSbitRate;		//9600 default, but can be other
 
+	//synthesizer correction factor
+	int32_t		_nSynthCorrPPM;		//parts per million; plus or minus
 } PersistentSettings;
 
 

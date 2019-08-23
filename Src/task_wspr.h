@@ -32,10 +32,21 @@ void WSPR_StopWSPR ( void );
 void WSPR_ReEncode ( void );
 
 
+//for tuning of the synthesizer correction value, we can just emit a CW signal.
+//this can let us beat against WWV, or even tweak it via WSJT-X waterfall.
+void WSPR_StartReference ( uint32_t nRefFreq );
+void WSPR_StopReference ( void );
+
+
 //called when the timer resource expires (at ISR time)
 void WSPR_Timer_Timeout ( void );
 //called when the RTC Alarm resource fires (at ISR time)
 void WSPR_RTC_Alarm ( void );
+
+//these are for the benefit of the command processor to provide status info
+int WSPR_isWSPRing ( void );			//is sending WSPR messages
+int WSPR_isRefSignaling ( void );		//is emitting a reference signal
+
 
 
 void thrdfxnWSPRTask ( void const* argument );

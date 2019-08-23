@@ -202,6 +202,7 @@ const PersistentSettings g_defaultSettings =
 	._nTxPowerDbm = 10,			//10 mW
 	._bUseGPS = 1,
 	._nGPSbitRate = 9600,		//default for the ublox NEO-6M
+	._nSynthCorrPPM = 0,		//initially uncorrected
 };
 
 

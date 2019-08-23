@@ -15,6 +15,7 @@
 #include "task_gps.h"
 #include "task_wspr.h"
 
+#include "backup_registers.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -42,6 +43,7 @@ static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszToke
 #endif
 
 static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlRef ( const IOStreamIF* pio, const char* pszszTokens );
 
 
 //the array of command descriptors our application supports
@@ -51,14 +53,15 @@ const CmdProcEntry g_aceCommands[] =
 	{ "persist", cmdhdlPerist, "persist settings to flash" },
 	{ "depersist", cmdhdlDeperist, "depersist settings from flash" },
 	{ "reboot", cmdhdlReboot, "restart the board" },
-	{ "dump", cmdhdlDump, "dump memory; dump {addr} {count}" },
+	{ "dump", cmdhdlDump, "dump memory; [addr] [count]" },
 #ifdef DEBUG
 	{ "diag", cmdhdlDiag, "show diagnostic info (DEBUG build only)" },
 	{ "exp001", cmdhdlExp001, "experimental command (DEBUG build only)" },
 #endif
 	{ "gps", cmdhdlGps, "show GPS info (if any)" },
+	{ "ref", cmdhdlRef, "emit reference signal; [on|off] {freq}" },
 
-	{ "help", cmdhdlHelp, "get help on a command; help {cmd}" },
+	{ "help", cmdhdlHelp, "get help on a command; help [cmd]" },
 };
 const size_t g_nAceCommands = COUNTOF(g_aceCommands);
 
@@ -247,6 +250,32 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutInt ( pio, psettings->_nGPSbitRate, 0 );
 		_cmdPutCRLF(pio);
 
+		_cmdPutString ( pio, "synthcorr:  " );
+		_cmdPutInt ( pio, psettings->_nSynthCorrPPM, 0 );
+		_cmdPutCRLF(pio);
+
+		_cmdPutString ( pio, "WSPR:  " );
+		if ( WSPR_isWSPRing() )
+		{
+			_cmdPutString ( pio, "on" );
+		}
+		else
+		{
+			_cmdPutString ( pio, "off" );
+		}
+		_cmdPutCRLF(pio);
+
+		_cmdPutString ( pio, "Ref:  " );
+		if ( WSPR_isRefSignaling() )
+		{
+			_cmdPutString ( pio, "on" );
+		}
+		else
+		{
+			_cmdPutString ( pio, "off" );
+		}
+		_cmdPutCRLF(pio);
+
 		return CMDPROC_SUCCESS;
 	}
 
@@ -291,18 +320,100 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		sDate.Year = my_atoul ( &pszValue[0], NULL ) - 2000;
 		HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
 		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
+
+		//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
+		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+		HAL_PWR_EnableBkUpAccess();
+		flags |= FLAG_HAS_SET_RTC;
+		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+		HAL_PWR_DisableBkUpAccess();
 	}
 	else if ( 0 == strcmp ( "freq", pszSetting ) )
 	{
-		long unsigned int freq = my_atoul ( pszValue, NULL );
-		if ( freq < 7200 || freq > 200000000 )
+		//convenience feature -- accept bands, like '20m' to select the 'standard' freq for that band
+		const char* pszLast = pszValue;
+		while ( '\0' != *pszLast ) ++pszLast;
+		--pszLast;
+		if ( 'M' == *pszLast || 'm' == *pszLast )
 		{
-			_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
-			return CMDPROC_ERROR;
+			//special case; band identifier
+			long unsigned int band = my_atoul ( pszValue, NULL );
+			switch ( band )
+			{
+			case 160:
+				//160m	1.8366
+				psettings->_dialFreqHz = 1836600;
+			break;
+			case 80:
+				//80m	3.5686
+				psettings->_dialFreqHz = 3568600;
+			break;
+			case 60:
+				//60m	5.2872
+				psettings->_dialFreqHz = 5287200;
+			break;
+			case 40:
+				//40m	7.0386
+				psettings->_dialFreqHz = 7038600;
+			break;
+			case 30:
+				//30m	10.1387
+				psettings->_dialFreqHz = 10138700;
+			break;
+			case 20:
+				//20m	14.0956
+				psettings->_dialFreqHz = 14095600;
+			break;
+			case 17:
+				//17m	18.1046
+				psettings->_dialFreqHz = 18104600;
+			break;
+			case 15:
+				//15m	21.0946
+				psettings->_dialFreqHz = 21094600;
+			break;
+			case 12:
+				//12m	24.9246
+				psettings->_dialFreqHz = 24924600;
+			break;
+			case 10:
+				//10m	28.1246
+				psettings->_dialFreqHz = 28124600;
+			break;
+			case 6:
+				//6m	50.293
+				psettings->_dialFreqHz = 50293000;
+			break;
+			case 4:
+				//4m	70.091
+				psettings->_dialFreqHz = 70091000;
+			break;
+			case 2:
+				//2m	144.489
+				psettings->_dialFreqHz = 144489000;
+			break;
+				//these are out of the synth's range
+				//70cm	432.3
+				//23cm	1296.5
+			default:
+				_cmdPutString ( pio, "unrecognized band\r\n" );
+				return CMDPROC_ERROR;
+			break;
+			}
 		}
 		else
 		{
-			psettings->_dialFreqHz = freq;
+			//conventional case; explicit frequency
+			long unsigned int freq = my_atoul ( pszValue, NULL );
+			if ( freq < 7200 || freq > 200000000 )
+			{
+				_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
+				return CMDPROC_ERROR;
+			}
+			else
+			{
+				psettings->_dialFreqHz = freq;
+			}
 		}
 	}
 	else if ( 0 == strcmp ( "band", pszSetting ) )
@@ -382,6 +493,12 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 	{
 		long int gpson = my_atol ( pszValue, NULL );
 		psettings->_bUseGPS = gpson ? 1 : 0;
+		if ( gpson )
+		{
+			//clear the locked state so that the next message will stimulate a
+			//notification of lock.
+			g_bLock = 0;
+		}
 //XXX activate/deactivate GPS
 	}
 	else if ( 0 == strcmp ( "gpsrate", pszSetting ) )
@@ -397,6 +514,11 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 			psettings->_nGPSbitRate = rate;
 //XXX reconfigure USART1
 		}
+	}
+	else if ( 0 == strcmp ( "synthcorr", pszSetting ) )
+	{
+		long int corr = my_atol ( pszValue, NULL );
+		psettings->_nSynthCorrPPM = corr;
 	}
 	else
 	{
@@ -582,6 +704,43 @@ static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens 
 }
 
 
+static CmdProcRetval cmdhdlRef ( const IOStreamIF* pio, const char* pszszTokens )
+{
+	const char* pszArg1 = pszszTokens;
+	if ( 0 == strcmp ( pszArg1, "on" ) )
+	{
+		//start reference signal
+		uint32_t freq;
+		const char* pszArg2 = CMDPROC_nextToken ( pszArg1 );
+		if ( NULL == pszArg2 )
+		{
+			//default is center of WSPR band
+			PersistentSettings* psettings = Settings_getStruct();
+			freq = psettings->_dialFreqHz + 1500;
+		}
+		else
+		{
+			//otherwise, and explicit frequency value
+			freq = my_atoul ( pszArg2, NULL );
+			if ( freq < 7200 || freq > 200000000 )
+			{
+				_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
+				return CMDPROC_ERROR;
+			}
+		}
+		WSPR_StartReference ( freq );
+		_cmdPutString ( pio, "Reference signal started\r\n" );
+	}
+	else
+	{
+		//stop any reference signal
+		WSPR_StopReference();
+		_cmdPutString ( pio, "Reference signal stopped\r\n" );
+	}
+	return CMDPROC_SUCCESS;
+}
+
+
 //========================================================================
 //'dump' command handler
 
@@ -708,7 +867,6 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 //this is used for doing experiments during development
 static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens )
 {
-
 	const char* pszArg1 = pszszTokens;
 	if ( 0 == strcmp ( pszArg1, "on" ) )
 	{
@@ -728,12 +886,13 @@ static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszToke
 	}
 	else
 	{
-		//stop any WSPR'in
+		//stop any WSPR'ing
 		WSPR_StopWSPR();
 		_cmdPutString ( pio, "WSPR'ing stopped\r\n" );
 	}
 
 	return CMDPROC_SUCCESS;
 }
+
 
 #endif

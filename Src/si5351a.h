@@ -1,6 +1,6 @@
 //==============================================================
 //This provides a simplified interface to the Si5351A3 device.
-//This is part of the BluepillSi5351Exp001 project.
+//This is part of the CarelessWSPR project.
 //This was derived from code found at 
 //https://www.qrp-labs.com/synth/si5351ademo.html
 #ifndef __SI5351A_H
@@ -68,10 +68,10 @@ typedef struct
 } SYNTH_PARAMS;
 
 
-void si5351aCalcParams ( SYNTH_PARAMS* pparams, uint64_t freqCentiHz );
+void si5351aCalcParams ( SYNTH_PARAMS* pparams, uint64_t freqCentiHz, int32_t nSynthCorrPPM );
 
 
-void si5351aSetFrequency ( uint64_t freqCentiHz );
+void si5351aSetFrequency ( uint64_t freqCentiHz, int32_t nSynthCorrPPM, int bResetPLL );
 
 
 #ifdef __cplusplus

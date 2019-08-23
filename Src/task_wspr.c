@@ -14,6 +14,8 @@
 
 #include "task_gps.h"	//for global status
 
+#include "backup_registers.h"
+
 #include <stdlib.h>
 
 
@@ -30,12 +32,11 @@ osStaticThreadDef_t g_tcbWSPR;
 //the WSPR message we transmit
 uint8_t g_abyWSPR[162];
 //state machine
-//XXX state wspr'ing
-//XXX state ref signal'ing
 enum WSPR_FLAGS
 {
-	WF_DOIT = 1,	 //should we be WSPR'ing sweet nothings at all
-	WF_REENCODE = 2,	//need to re-encode the WSPR message first
+	WF_WSPR = 1,		//should we be WSPR'ing sweet nothings at all
+	WF_REFERENCE = 2,	//should we be emitting a CW tone for calibration
+	WF_REENCODE = 4,	//need to re-encode the WSPR message first
 };
 uint32_t g_nWSPRFlags = 0;	//any of several flags
 int g_nWSPRSymbolIndex;		//which of g_abyWSPR are we on
@@ -78,6 +79,18 @@ uint32_t _impl_setFlag ( uint32_t n )
 
 //====================================================
 //WSPR task
+
+
+int WSPR_isWSPRing ( void )
+{
+	return _impl_testFlag ( WF_WSPR );
+}
+
+
+int WSPR_isRefSignaling ( void )
+{
+	return _impl_testFlag ( WF_REFERENCE );
+}
 
 
 //==============================================================
@@ -152,7 +165,11 @@ void WSPR_Timer_Timeout ( void )
 {
 	//we are at ISR time, so we avoid doing work here
 	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-	xTaskNotifyFromISR ( g_thWSPR, TNB_WSPRNEXTBIT, eSetBits, &xHigherPriorityTaskWoken );
+	//figure out what notification to send
+	uint32_t flags = _impl_testFlag ( WF_WSPR|WF_REFERENCE );
+	xTaskNotifyFromISR ( g_thWSPR, 
+			( flags & WF_REFERENCE ) ? TNB_REFADJ : TNB_WSPRNEXTBIT, 
+			eSetBits, &xHigherPriorityTaskWoken );
 	portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
@@ -173,15 +190,43 @@ void WSPR_Initialize ( void )
 	si5351aOutputOff(SI_CLK0_CONTROL);	//extinguish signal; if any
 	StopBitClock();	//can be running at app startup
 	_impl_WSPR_CancelSchedule();	//unlikely at app startup, but ensure
-	g_nWSPRFlags = WF_REENCODE;		//will need an initial encode
+	g_nWSPRFlags = WF_REENCODE;		//will always need an initial encode
+}
+
+
+
+void WSPR_StartReference ( uint32_t nRefFreq )
+{
+	if ( ! _impl_testFlag ( WF_REFERENCE ) )	//not if we're already doing it
+	{
+		WSPR_StopWSPR();	//these must be mutually exclusive
+		_impl_setFlag ( WF_REFERENCE );
+		StartBitClock();	//start the periodic notifications
+		g_nWSPRBaseFreq = nRefFreq;	//remember the frequency
+		uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL;
+		PersistentSettings* psettings = Settings_getStruct();
+		si5351aSetFrequency ( nToneCentiHz, psettings->_nSynthCorrPPM, 1 );
+	}
+}
+
+
+void WSPR_StopReference ( void )
+{
+	if ( _impl_testFlag ( WF_REFERENCE ) )	//if we were emitting signal
+	{
+		StopBitClock();	//stop the periodic notifications
+		si5351aOutputOff(SI_CLK0_CONTROL);	//shut it off now
+	}
+	_impl_clearFlag ( WF_REFERENCE );
 }
 
 
 void WSPR_StartWSPR ( void )
 {
-	if ( ! _impl_testFlag ( WF_DOIT ) )	//not if we're already doing it
+	if ( ! _impl_testFlag ( WF_WSPR ) )	//not if we're already doing it
 	{
-		_impl_setFlag ( WF_DOIT );
+		WSPR_StopReference();	//these must be mutually exclusive
+		_impl_setFlag ( WF_WSPR );
 		_impl_WSPR_ScheduleNext();
 	}
 }
@@ -190,7 +235,7 @@ void WSPR_StartWSPR ( void )
 void WSPR_StopWSPR ( void )
 {
 	_impl_WSPR_CancelSchedule();
-	_impl_clearFlag ( WF_DOIT );
+	_impl_clearFlag ( WF_WSPR );
 }
 
 
@@ -203,6 +248,8 @@ void WSPR_ReEncode ( void )
 //implementation for the WSPR task
 void thrdfxnWSPRTask ( void const* argument )
 {
+	//GPS may have come up before we did, so clear the 'locked' state
+	g_bLock = 0;
 	uint32_t msWait = 1000;
 	for(;;)
 	{
@@ -234,9 +281,16 @@ void thrdfxnWSPRTask ( void const* argument )
 					HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
 					HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
+					//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
+					uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+					HAL_PWR_EnableBkUpAccess();
+					flags |= FLAG_HAS_SET_RTC;
+					HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+					HAL_PWR_DisableBkUpAccess();
+
 					//setting the time will break any pending alarms, so we
 					//must reschedule alarms if needed
-					if ( _impl_testFlag ( WF_DOIT ) )	//if we are wspr'ing (and need alarm)
+					if ( _impl_testFlag ( WF_WSPR ) )	//if we are wspr'ing (and need alarm)
 					{
 						_impl_WSPR_ScheduleNext();	//reschedule it
 					}
@@ -260,7 +314,7 @@ void thrdfxnWSPRTask ( void const* argument )
 			//if our scheduled WSPR start has occurred, start
 			if ( ulNotificationValue & TNB_WSPRSTART )
 			{
-				int doitnow = _impl_testFlag ( WF_DOIT );
+				int doitnow = _impl_testFlag ( WF_WSPR );
 
 				//first, update our WSPR message if needed
 				if ( _impl_testFlag ( WF_REENCODE ) )
@@ -313,7 +367,8 @@ void thrdfxnWSPRTask ( void const* argument )
 						g_nWSPRSymbolIndex = 0;
 						uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL + 
 								g_abyWSPR[g_nWSPRSymbolIndex] * 146ULL;
-						si5351aSetFrequency ( nToneCentiHz );
+						//we will reset the PLL for the first one
+						si5351aSetFrequency ( nToneCentiHz, psettings->_nSynthCorrPPM, 1 );
 _ledOnGn();
 						g_nWSPRSymbolIndex = 1;	//prepare for next symbol
 					}
@@ -341,10 +396,22 @@ _ledOffGn();
 					//sub-Hertz precision we need
 					uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL + 
 							g_abyWSPR[g_nWSPRSymbolIndex] * 146ULL;
-					si5351aSetFrequency ( nToneCentiHz );
+					//we don't reset the PLL for the others
+					PersistentSettings* psettings = Settings_getStruct();
+					si5351aSetFrequency ( nToneCentiHz, psettings->_nSynthCorrPPM, 0 );
 _ledToggleGn();
 					++g_nWSPRSymbolIndex;
 				}
+			}
+
+			//if we are emitting reference signal, we get a periodic'
+			//notification to update it.  This allows us to tweak the
+			//synthcorr value to tune in to the right value.
+			if ( ulNotificationValue & TNB_REFADJ )
+			{
+				uint64_t nToneCentiHz = g_nWSPRBaseFreq * 100ULL;
+				PersistentSettings* psettings = Settings_getStruct();
+				si5351aSetFrequency ( nToneCentiHz, psettings->_nSynthCorrPPM, 0 );
 			}
 		}
 		else	//timeout on wait

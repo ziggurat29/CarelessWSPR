@@ -37,6 +37,7 @@ enum TaskNotificationBits
 	TNB_WSPRSTART = 0x00010000,		//start the transmission
 	TNB_WSPRNEXTBIT = 0x00020000,	//send next bit in transmission
 	TNB_WSPR_GPSLOCK = 0x00040000,	//GPS lock status changed
+	TNB_REFADJ = 0x00080000,		//periodic adjustment of reference output
 };
 
 
