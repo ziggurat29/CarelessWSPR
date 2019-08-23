@@ -165,9 +165,8 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 		//4807.038,N   Latitude 48 deg 07.038' N
 		//01131.000,E  Longitude 11 deg 31.000' E
 		int bLockedStateChanged = 0;
-		char* pchPrevStr = pszThisStr;
 		nextStr ( &pszThisStr );
-		int nLen = pszThisStr - pchPrevStr;
+		int nLen = strlen ( pszThisStr );
 		if ( nLen > 4 )	//must have enough stuff
 		{
 			char szHour[3], szMinute[3], * pszSecond;
@@ -231,9 +230,8 @@ GPSProcRetval GPS_process ( const IOStreamIF* pio )
 				g_bLock = 0;
 			}
 
-			pchPrevStr = pszThisStr;
 			nextStr ( &pszThisStr );
-			nLen = pszThisStr - pchPrevStr;
+			nLen = strlen ( pszThisStr );
 			if ( nLen > 5 )	//must have enough stuff
 			{
 				char szDate[3], szMonth[3], * pszYear;
