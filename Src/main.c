@@ -192,10 +192,10 @@ int main(void)
 	//already set the board up (by way of a flag held in the 'backup
 	//registers', then skip the SystemClock_Config(), because that will blast
 	//the contents of those backup registers!  Instead, we will take it as
-	//read that the clocks have been configed already, and that we are probably
+	//read that the clocks have been configured already, and that we are probably
 	//just doing a warm boot.
-	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-	if ( ! ( flags & FLAG_HAS_CONFIGED_CLOCKS ) )
+//XXX	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+//XXX not correct yet; need to do /something/ so that RTC will work	if ( ! ( flags & FLAG_HAS_CONFIGED_CLOCKS ) )
 	{	//beginning of ugly hack
   /* USER CODE END Init */
 
@@ -203,10 +203,10 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-		HAL_PWR_EnableBkUpAccess();
-		flags |= FLAG_HAS_CONFIGED_CLOCKS;
-		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
-		HAL_PWR_DisableBkUpAccess();
+//XXX not correct yet; need to do /something/ so that RTC will work		HAL_PWR_EnableBkUpAccess();
+//XXX		flags |= FLAG_HAS_CONFIGED_CLOCKS;
+//XXX		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+//XXX		HAL_PWR_DisableBkUpAccess();
 	}	//end of ugly hack
 
 	//do a dummy alloc to cause the heap to be init'ed and so the memory stats as well
@@ -381,8 +381,8 @@ static void MX_RTC_Init(void)
 	//is used to indicate we have set the clock at some point.  If this flag is
 	//set in the backup register, then we have /not power-cycled the board, and
 	//so we avoid the generated code, below which will blast the RTC setting.
-	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-	if ( ! ( flags & FLAG_HAS_SET_RTC ) )
+//XXX	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+//XXX not correct yet; need to write /something/ apparently	if ( ! ( flags & FLAG_HAS_SET_RTC ) )
 	{	//ugly hack to skip needlessly setting the RTC via generated code
   /* USER CODE END Check_RTC_BKUP */
 

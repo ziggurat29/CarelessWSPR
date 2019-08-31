@@ -322,11 +322,11 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
 		//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
-		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-		HAL_PWR_EnableBkUpAccess();
-		flags |= FLAG_HAS_SET_RTC;
-		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
-		HAL_PWR_DisableBkUpAccess();
+//XXX not correct yet; need to do /something/ so that RTC will work		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+//XXX		HAL_PWR_EnableBkUpAccess();
+//XXX		flags |= FLAG_HAS_SET_RTC;
+//XXX		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+//XXX		HAL_PWR_DisableBkUpAccess();
 	}
 	else if ( 0 == strcmp ( "freq", pszSetting ) )
 	{
