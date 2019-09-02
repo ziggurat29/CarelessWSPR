@@ -33,6 +33,10 @@ enum TaskNotificationBits
 	//bits for the default process
 	TNB_LIGHTSCHANGED = 0x00010000,		//the lights have changed
 
+	//bits for the monitor
+	TNB_CLIENT_CONNECT = 0x00010000,	//a client has (probably) connected
+	TNB_CLIENT_DISCONNECT = 0x00020000,	//a client has (probably) disconnected
+
 	//bits for the WSPR process
 	TNB_WSPRSTART = 0x00010000,		//start the transmission
 	TNB_WSPRNEXTBIT = 0x00020000,	//send next bit in transmission

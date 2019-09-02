@@ -25,6 +25,9 @@
 /* USER CODE BEGIN INCLUDE */
 #include "serial_devices.h"
 
+#include "task_monitor.h"
+
+
 //(these are currently internal to serial_devices.c; may get moved out)
 extern size_t XXX_Pull_USBCDC_TxData ( uint8_t* pbyBuffer, const size_t nMax );
 extern size_t XXX_Push_USBCDC_RxData ( const uint8_t* pbyBuffer, const size_t nAvail );
@@ -265,6 +268,53 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
+	{
+		//NOTE:  goofiness in usbd_cdc.c; we don't get the request object, and
+		//so we can't inspect the wValue of it.  This is significant, because
+		//this is what conveys the DTR/RTS state!  So this command is useless
+		//otherwise.
+		//However, if you inspect the logic at usbd_cdc.c:594 and at
+		//usbd_cdc.c:614, you'll see that the request is passed as the buffer
+		//pointer here, but with a length of zero!  So, if we're careful about
+		//validating that assumption, we can cast it back to get to the info
+		//we need.
+		if ( 0 == length )	//(which it always will be for this command)
+		{
+			USBD_SetupReqTypedef* preq = (USBD_SetupReqTypedef*)pbuf;
+			//for this command, the wValue has b0 = DTR and b1 = RTS
+			//well-discplined serial clients will assert DTR, and we
+			//can use that as an indication that a client application
+			//opened the port.
+			//NOTE:  These lines are often also set to an initial state
+			//by the host's driver, so do not consider these to be
+			//exclusively an indication of a client connecting.  Hosts
+			//usually will deassert these signals when this device
+			//enumerates.  Lastly, there is no guarantee that a client
+			//will assert DTR, so it's not 100% guarantee, just a pretty
+			//good indicator.
+			//NOTE:  we are in an ISR at this time
+			if ( preq->wValue & 1 )	//DTR
+			{	//probable client connecting
+				//We use this opportunity to notify the command processor
+				//task.
+				BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+				xTaskNotifyFromISR ( g_thMonitor, TNB_CLIENT_CONNECT, eSetBits, &xHigherPriorityTaskWoken );
+				portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+			}
+			else
+			{	//probable client disconnecting
+				BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+				xTaskNotifyFromISR ( g_thMonitor, TNB_CLIENT_DISCONNECT, eSetBits, &xHigherPriorityTaskWoken );
+				portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+			}
+			if ( preq->wValue & 2 )	//RTS
+			{
+			}
+			else
+			{
+			}
+		}
+	}
 
     break;
 
