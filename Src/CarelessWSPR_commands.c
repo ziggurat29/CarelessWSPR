@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 extern RTC_HandleTypeDef hrtc;	//in main.c
 
@@ -146,6 +147,107 @@ static uint32_t _parseInt ( const char* pszToken )
 	}
 
 	return val;
+}
+
+
+
+//purge a string of anything other than digits
+static int _cramDigits ( char* pszDest, const char* pszSrc )
+{
+	char* pszAt = pszDest;
+	while ( 1 )
+	{
+		if ( '\0' == *pszSrc )
+		{	//end; copy, do not advance
+			*pszAt = *pszSrc;
+			break;
+		}
+		else if ( isdigit ( *pszSrc ) )
+		{	//keep; copy, advance
+			*pszAt = *pszSrc;
+			++pszAt;
+			++pszSrc;
+		}
+		else
+		{	//skip; advance only source
+			++pszSrc;
+		}
+	}
+	return pszAt - pszDest;	//return length
+}
+
+
+
+static int _setDate ( const IOStreamIF* pio, const char* pszDate )
+{
+	int nDateLen = strlen ( pszDate );
+	//check for too long for fixed size buffers
+	if ( nDateLen > 10 )
+	{
+		_cmdPutString ( pio, "date requires yyyy-mm-dd\r\n" );
+		return 0;
+	}
+	char achDate[11];
+	nDateLen = _cramDigits ( achDate, pszDate );
+	if ( 8 != nDateLen )
+	{
+		_cmdPutString ( pio, "date requires yyyy-mm-dd\r\n" );
+		return CMDPROC_ERROR;
+	}
+
+	HAL_PWR_EnableBkUpAccess();	//... and leave it that way
+
+	RTC_DateTypeDef sDate;
+	sDate.WeekDay = RTC_WEEKDAY_SUNDAY;	//(arbitrary)
+	sDate.Date = my_atoul ( &achDate[6], NULL );
+	achDate[6] = '\0';
+	sDate.Month = my_atoul ( &achDate[4], NULL );
+	achDate[4] = '\0';
+	sDate.Year = my_atoul ( &achDate[0], NULL ) - 2000;
+	HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
+
+	//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
+	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+	flags |= FLAG_HAS_SET_RTC;
+	HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+
+	return 1;
+}
+
+
+static int _setTime ( const IOStreamIF* pio, const char* pszTime )
+{
+	int nTimeLen = strlen ( pszTime );
+	//check for too long for fixed size buffers
+	if ( nTimeLen > 8 )
+	{
+		_cmdPutString ( pio, "time requires hh:mm:ss\r\n" );
+		return 0;
+	}
+	char achTime[9];
+	nTimeLen = _cramDigits ( achTime, pszTime );
+	if ( 6 != nTimeLen && 4 != nTimeLen )	//(we accept without seconds)
+	{
+		_cmdPutString ( pio, "time requires hh:mm:ss\r\n" );
+		return CMDPROC_ERROR;
+	}
+
+	HAL_PWR_EnableBkUpAccess();	//... and leave it that way
+	RTC_TimeTypeDef sTime;
+	//careful:  the following works only because an empty field == zero
+	sTime.Seconds = my_atoul ( &achTime[4], NULL );
+	achTime[4] = '\0';
+	sTime.Minutes = my_atoul ( &achTime[2], NULL );
+	achTime[2] = '\0';
+	sTime.Hours = my_atoul ( &achTime[0], NULL );
+	HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
+
+	//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
+	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+	flags |= FLAG_HAS_SET_RTC;
+	HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+
+	return 1;
 }
 
 
@@ -279,7 +381,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		return CMDPROC_SUCCESS;
 	}
 
-	//next, get the value
+	//next, get the 'value' which all settings must have at least one
 	const char* pszValue;
 	pszValue = CMDPROC_nextToken ( pszSetting );
 	if ( NULL == pszValue )
@@ -290,7 +392,16 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		return CMDPROC_ERROR;
 	}
 
-	if ( 0 == strcmp ( "datetime", pszSetting ) )
+
+	if ( 0 == strcmp ( "date", pszSetting ) )
+	{
+		_setDate ( pio, pszValue );	//(error message already emitted)
+	}
+	else if ( 0 == strcmp ( "time", pszSetting ) )
+	{
+		_setTime ( pio, pszValue );	//(error message already emitted)
+	}
+	else if ( 0 == strcmp ( "datetime", pszSetting ) )
 	{
 		const char* pszTime;
 		pszTime = CMDPROC_nextToken ( pszValue );
@@ -299,33 +410,11 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 			_cmdPutString ( pio, "datetime requires yyyy-mm-dd hh:mm:ss\r\n" );
 			return CMDPROC_ERROR;
 		}
-		int nDateLen = strlen ( pszValue );
-		int nTimeLen = strlen ( pszTime );
-		if ( 10 != nDateLen || 8 != nTimeLen || 
-				'-' != pszValue[4] || '-' != pszValue[7] || 
-				':' != pszTime[2] || ':' != pszTime[5] )
-		{
-			_cmdPutString ( pio, "datetime requires yyyy-mm-dd hh:mm:ss\r\n" );
-			return CMDPROC_ERROR;
-		}
-		//set the RTC right now
-		HAL_PWR_EnableBkUpAccess();	//... and leave it that way
-		RTC_TimeTypeDef sTime;
-		RTC_DateTypeDef sDate;
-		sTime.Hours = my_atoul ( &pszTime[0], NULL );
-		sTime.Minutes = my_atoul ( &pszTime[3], NULL );
-		sTime.Seconds = my_atoul ( &pszTime[6], NULL );
-		sDate.WeekDay = RTC_WEEKDAY_SUNDAY;	//(arbitrary)
-		sDate.Date = my_atoul ( &pszValue[8], NULL );
-		sDate.Month = my_atoul ( &pszValue[5], NULL );
-		sDate.Year = my_atoul ( &pszValue[0], NULL ) - 2000;
-		HAL_RTC_SetTime ( &hrtc, &sTime, RTC_FORMAT_BIN );
-		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
-		//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
-		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-		flags |= FLAG_HAS_SET_RTC;
-		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
+		if ( _setDate ( pio, pszValue ) )	//(error message already emitted)
+		{
+			_setTime ( pio, pszTime );
+		}
 	}
 	else if ( 0 == strcmp ( "freq", pszSetting ) )
 	{
