@@ -309,6 +309,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 			return CMDPROC_ERROR;
 		}
 		//set the RTC right now
+		HAL_PWR_EnableBkUpAccess();	//... and leave it that way
 		RTC_TimeTypeDef sTime;
 		RTC_DateTypeDef sDate;
 		sTime.Hours = my_atoul ( &pszTime[0], NULL );
@@ -322,11 +323,9 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
 		//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
-//XXX not correct yet; need to do /something/ so that RTC will work		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-//XXX		HAL_PWR_EnableBkUpAccess();
-//XXX		flags |= FLAG_HAS_SET_RTC;
-//XXX		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
-//XXX		HAL_PWR_DisableBkUpAccess();
+		uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+		flags |= FLAG_HAS_SET_RTC;
+		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
 	}
 	else if ( 0 == strcmp ( "freq", pszSetting ) )
 	{

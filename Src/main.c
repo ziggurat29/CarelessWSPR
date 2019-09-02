@@ -188,26 +188,12 @@ int main(void)
 	//of making it obvious that this chore simply must be done.
 	XXX_USBCDC_PresenceHack();	//this does nothing real; do not delete
 
-	//ugly hack to get around generated code; if we detect that we have
-	//already set the board up (by way of a flag held in the 'backup
-	//registers', then skip the SystemClock_Config(), because that will blast
-	//the contents of those backup registers!  Instead, we will take it as
-	//read that the clocks have been configured already, and that we are probably
-	//just doing a warm boot.
-//XXX	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-//XXX not correct yet; need to do /something/ so that RTC will work	if ( ! ( flags & FLAG_HAS_CONFIGED_CLOCKS ) )
-	{	//beginning of ugly hack
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-//XXX not correct yet; need to do /something/ so that RTC will work		HAL_PWR_EnableBkUpAccess();
-//XXX		flags |= FLAG_HAS_CONFIGED_CLOCKS;
-//XXX		HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
-//XXX		HAL_PWR_DisableBkUpAccess();
-	}	//end of ugly hack
 
 	//do a dummy alloc to cause the heap to be init'ed and so the memory stats as well
 	vPortFree ( pvPortMalloc ( 0 ) );
@@ -381,8 +367,9 @@ static void MX_RTC_Init(void)
 	//is used to indicate we have set the clock at some point.  If this flag is
 	//set in the backup register, then we have /not power-cycled the board, and
 	//so we avoid the generated code, below which will blast the RTC setting.
-//XXX	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-//XXX not correct yet; need to write /something/ apparently	if ( ! ( flags & FLAG_HAS_SET_RTC ) )
+	HAL_PWR_EnableBkUpAccess();	//... and leave it that way
+	uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+	if ( ! ( flags & FLAG_HAS_SET_RTC ) )
 	{	//ugly hack to skip needlessly setting the RTC via generated code
   /* USER CODE END Check_RTC_BKUP */
 
@@ -406,6 +393,17 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
+	}
+else
+	{
+		//If we have reset or woken up but aren't going to set the RTC because
+		//it was already set, then we at least need to do the following or we
+		//won't ever be able to write to the RTC (e.g. for setting alarm)
+		//NOTE:  on the 'F1's, the RTC is 'V1', which means that there is not
+		//date.  The date is emulated in software, and so is lost on reset,
+		//etc.  Fortunately, we don't really care about date in WSPR -- just
+		//time.
+		HAL_RTC_WaitForSynchro(&hrtc);
 	}	//end ugly hack to avoid some generated code
 
   /* USER CODE END RTC_Init 2 */

@@ -124,6 +124,7 @@ extern RTC_HandleTypeDef hrtc;	//in main.c
 //cancel any scheduled future WSPR transmissions
 static void _impl_WSPR_CancelSchedule ( void )
 {
+	HAL_PWR_EnableBkUpAccess();	//... and leave it that way
 	HAL_StatusTypeDef ret = HAL_RTC_DeactivateAlarm ( &hrtc, RTC_ALARM_A );
 	(void)ret;
 }
@@ -155,6 +156,7 @@ static void _impl_WSPR_ScheduleNext ( void )
 	}
 
 	//set the alarm
+	HAL_PWR_EnableBkUpAccess();	//... and leave it that way
 	HAL_StatusTypeDef ret = HAL_RTC_SetAlarm_IT ( &hrtc, &sAlarm, RTC_FORMAT_BIN );
 	(void)ret;
 }
@@ -269,6 +271,7 @@ void thrdfxnWSPRTask ( void const* argument )
 				if ( g_bLock )	//got a lock
 				{
 					//first, update the RTC time
+					HAL_PWR_EnableBkUpAccess();	//... and leave it that way
 					RTC_TimeTypeDef sTime;
 					RTC_DateTypeDef sDate;
 					sTime.Hours = g_nGPSHour;
@@ -282,11 +285,9 @@ void thrdfxnWSPRTask ( void const* argument )
 					HAL_RTC_SetDate ( &hrtc, &sDate, RTC_FORMAT_BIN );
 
 					//set the FLAG_HAS_SET_RTC so we don't blast it on warm boot
-//XXX not correct yet; need to do /something/ so that RTC will work					uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
-//XXX					HAL_PWR_EnableBkUpAccess();
-//XXX					flags |= FLAG_HAS_SET_RTC;
-//XXX					HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
-//XXX					HAL_PWR_DisableBkUpAccess();
+					uint32_t flags = HAL_RTCEx_BKUPRead ( &hrtc, FLAGS_REGISTER );
+					flags |= FLAG_HAS_SET_RTC;
+					HAL_RTCEx_BKUPWrite ( &hrtc, FLAGS_REGISTER, flags );
 
 					//setting the time will break any pending alarms, so we
 					//must reschedule alarms if needed
