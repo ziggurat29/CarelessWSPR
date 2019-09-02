@@ -46,6 +46,7 @@ void WSPR_RTC_Alarm ( void );
 //these are for the benefit of the command processor to provide status info
 int WSPR_isWSPRing ( void );			//is sending WSPR messages
 int WSPR_isRefSignaling ( void );		//is emitting a reference signal
+int WSPR_isTransmitting ( void );		//are we emitting signal right now?
 
 
 

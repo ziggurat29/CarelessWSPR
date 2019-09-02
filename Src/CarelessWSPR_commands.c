@@ -356,18 +356,30 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutInt ( pio, psettings->_nSynthCorrPPM, 0 );
 		_cmdPutCRLF(pio);
 
-		_cmdPutString ( pio, "WSPR:  " );
-		if ( WSPR_isWSPRing() )
+		_cmdPutString ( pio, "wspr:  " );
+		_cmdPutString ( pio, WSPR_isWSPRing() ? "on" : "off" );
+		_cmdPutString ( pio, WSPR_isTransmitting() ? ", " : ", not " );
+		_cmdPutString ( pio, "transmitting" );
+
+		//there doesn't seem to be a way to determine if the alarm has been set
+		//via the HAL, but we know we are using interrupts, so seeing if the
+		//alarm interrupt is unmasked is sufficient.
+		if ( hrtc.Instance->CRH & RTC_IT_ALRA )
 		{
-			_cmdPutString ( pio, "on" );
-		}
-		else
-		{
-			_cmdPutString ( pio, "off" );
+			RTC_AlarmTypeDef sAlarm;
+			HAL_RTC_GetAlarm(&hrtc, &sAlarm, RTC_ALARM_A, RTC_FORMAT_BIN);
+			//(no alarm reads as 06:28:15)
+
+			_cmdPutString ( pio, ", next scheduled check at: " );
+			_cmdPutInt ( pio, sAlarm.AlarmTime.Hours, 2 );
+			_cmdPutChar ( pio, ':' );
+			_cmdPutInt ( pio, sAlarm.AlarmTime.Minutes, 2 );
+			_cmdPutChar ( pio, ':' );
+			_cmdPutInt ( pio, sAlarm.AlarmTime.Seconds, 2 );
 		}
 		_cmdPutCRLF(pio);
 
-		_cmdPutString ( pio, "Ref:  " );
+		_cmdPutString ( pio, "ref:  " );
 		if ( WSPR_isRefSignaling() )
 		{
 			_cmdPutString ( pio, "on" );

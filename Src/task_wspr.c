@@ -93,6 +93,18 @@ int WSPR_isRefSignaling ( void )
 }
 
 
+int WSPR_isTransmitting ( void )
+{
+	if ( WSPR_isRefSignaling() )	//ref on is always transmitting
+		return 1;
+	//A bit of a hack, but when we are sending WSPR signals, we will have a
+	//next symbol index > 0.  It is only zero for an instant when we first
+	//turn in on before we immediately increment it.  Similarly, we reset it
+	//to zero when we turn the signal off at the end.
+	return g_nWSPRSymbolIndex > 0;
+}
+
+
 //==============================================================
 //timer-related things.  These inlines are here to make it a little
 //easier to change the timer resource later, if I ever need to, by
@@ -202,6 +214,7 @@ void WSPR_StartReference ( uint32_t nRefFreq )
 	if ( ! _impl_testFlag ( WF_REFERENCE ) )	//not if we're already doing it
 	{
 		WSPR_StopWSPR();	//these must be mutually exclusive
+		g_nWSPRSymbolIndex = 0;	//not required, but helps status in 'set'
 		_impl_setFlag ( WF_REFERENCE );
 		StartBitClock();	//start the periodic notifications
 		g_nWSPRBaseFreq = nRefFreq;	//remember the frequency
