@@ -4,6 +4,8 @@
 #include "command_processor.h"
 #include "CarelessWSPR_commands.h"
 
+#include <string.h>
+
 
 //the task that runs an interactive monitor on the USB data
 osThreadId g_thMonitor = NULL;
@@ -55,11 +57,28 @@ void USBCDC_TransmitEmpty ( void )
 
 void thrdfxnMonitorTask ( void const* argument )
 {
+	uint32_t msWait = 1000;
 	for(;;)
 	{
-		while ( CMDPROC_QUIT != CMDPROC_process ( g_pMonitorIOIf, g_aceCommands, g_nAceCommands ) )
+		//wait on various task notifications
+		uint32_t ulNotificationValue;
+		BaseType_t xResult = xTaskNotifyWait( pdFALSE,	//Don't clear bits on entry.
+				0xffffffff,	//Clear all bits on exit.
+				&ulNotificationValue,	//Stores the notified value.
+				pdMS_TO_TICKS(msWait) );
+		if( xResult == pdPASS )
 		{
-			//XXX
+			//if we got a new client connection, do a greeting
+			if ( ulNotificationValue & TNB_CLIENT_CONNECT )
+			{
+				CWCMD_SendGreeting ( g_pMonitorIOIf );
+				CWCMD_SendPrompt ( g_pMonitorIOIf );
+			}
+			if ( ulNotificationValue & TNB_DAV )
+			{
+				//we use the non-blocking version in this notification loop
+				CMDPROC_process_nb ( g_pMonitorIOIf, g_aceCommands, g_nAceCommands );
+			}
 		}
 	}
 }

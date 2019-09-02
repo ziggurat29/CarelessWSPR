@@ -19,6 +19,7 @@ enum CmdProcRetval
 	CMDPROC_SUCCESS = 0,	//a command was dispatched successfully
 	CMDPROC_ERROR = 1,		//a command was received, but there were problems
 	CMDPROC_QUIT = 2,		//it is time to exit the command processor
+	CMDPROC_INCOMPLETE = 3,	//when non-blocking, the line is not complete
 };
 
 
@@ -35,6 +36,8 @@ struct CmdProcEntry
 
 //process data from input stream, dispatching commands
 CmdProcRetval CMDPROC_process ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe );
+//non-blocking version will returns even if the line is incomplete
+CmdProcRetval CMDPROC_process_nb ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe );
 
 
 //helpers for command handlers

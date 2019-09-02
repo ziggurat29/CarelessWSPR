@@ -91,6 +91,67 @@ static void _getCommandLine2 ( const IOStreamIF* pio )
 
 
 
+//this gets characters from the input stream until line termination occurs.
+//this supports echoing and backspace.
+//This is a non-blocking version; it returns true if the line is complete and
+//can be processed, and false if the line is incomplete and this should be
+//invoked again later.
+static int _getCommandLine3 ( const IOStreamIF* pio )
+{
+	static int nIdxCmd = 0;
+
+	int bCont = 1;
+
+	//pull characters into cmdline buffer until full or line terminated
+	while ( bCont && nIdxCmd < COUNTOF(g_achCmdLine) )
+	{
+		char chNow;
+		size_t nGot = pio->_receive ( pio, &chNow, 1 );
+		if ( 0 == nGot )	//wanted more, but no more
+		{
+			return 0;	//try again later
+		}
+
+		switch ( chNow )
+		{
+		case '\r':	//CR is a line terminator
+			_cmdPutChar ( pio, '\r' );
+			_cmdPutChar ( pio, '\n' );
+			memset ( &g_achCmdLine[nIdxCmd], '\0', COUNTOF(g_achCmdLine) - nIdxCmd );	//clear rest of buffer
+			nIdxCmd = 0;	//next time start new line
+			bCont = 0;
+		break;
+
+		case '\n':	//LF is a line terminator
+			_cmdPutChar ( pio, '\r' );
+			_cmdPutChar ( pio, '\n' );
+			memset ( &g_achCmdLine[nIdxCmd], '\0', COUNTOF(g_achCmdLine) - nIdxCmd );	//clear rest of buffer
+			nIdxCmd = 0;	//next time start new line
+			bCont = 0;
+		break;
+
+		case '\b':	//backspace
+		case '\x7f':	//rubout
+			if ( nIdxCmd > 0 )	//avoid silly case of backspacing past the beginning
+			{
+				_cmdPutChar ( pio, chNow );	//echo it back
+				--nIdxCmd;
+			}
+		break;
+
+		default:
+			//everything else simply accumulates the character
+			_cmdPutChar ( pio, chNow );	//echo it back
+			g_achCmdLine[nIdxCmd] = chNow;
+			++nIdxCmd;
+		break;
+		}
+	}
+	return 1;
+}
+
+
+
 //this processes the command line into tokens.  this supports escaping and
 //quoting.
 void _parseCommandLine ( void )
@@ -206,17 +267,11 @@ void _parseCommandLine ( void )
 
 
 
-//process data from input stream, dispatching commands
-CmdProcRetval CMDPROC_process ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe )
+static CmdProcRetval _parseAndDispatch ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe )
 {
 	CmdProcRetval retval;
 	int nCmdEntry;
 
-	//get a tokenized series of strings
-	do
-	{
-		_getCommandLine2 ( pio );	//get the command line from the IO stream
-	} while ( '\0' == g_achCmdLine[0] );
 	_parseCommandLine();	//tokenize the command line
 
 	//dispatch command
@@ -236,6 +291,33 @@ CmdProcRetval CMDPROC_process ( const IOStreamIF* pio, const CmdProcEntry* acpe,
 	}
 
 	return retval;
+}
+
+
+//process data from input stream, dispatching commands
+CmdProcRetval CMDPROC_process ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe )
+{
+	//get a tokenized series of strings
+	do
+	{
+		_getCommandLine2 ( pio );	//get the command line from the IO stream
+	} while ( '\0' == g_achCmdLine[0] );
+
+	return _parseAndDispatch ( pio, acpe, nAcpe );
+}
+
+
+
+CmdProcRetval CMDPROC_process_nb ( const IOStreamIF* pio, const CmdProcEntry* acpe, size_t nAcpe )
+{
+	//get a tokenized series of strings
+	do
+	{
+		if ( ! _getCommandLine3 ( pio ) )
+			return CMDPROC_INCOMPLETE;
+	} while ( '\0' == g_achCmdLine[0] );	//skip empty lines
+
+	return _parseAndDispatch ( pio, acpe, nAcpe );
 }
 
 

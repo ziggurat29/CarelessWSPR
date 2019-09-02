@@ -253,6 +253,23 @@ static int _setTime ( const IOStreamIF* pio, const char* pszTime )
 
 
 //========================================================================
+
+
+//send the 'greeting' when a client first connects
+void CWCMD_SendGreeting ( const IOStreamIF* pio )
+{
+	_cmdPutString ( pio, "Welcome to the Careless WSPR Command Processor\r\n" );
+}
+
+
+//send the 'prompt' that heads a command line
+void CWCMD_SendPrompt ( const IOStreamIF* pio )
+{
+	_cmdPutString ( pio, "> " );
+}
+
+
+//========================================================================
 //simple command handlers
 
 
@@ -286,6 +303,7 @@ static CmdProcRetval cmdhdlHelp ( const IOStreamIF* pio, const char* pszszTokens
 		}
 	}
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -390,6 +408,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		}
 		_cmdPutCRLF(pio);
 
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_SUCCESS;
 	}
 
@@ -401,6 +420,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutString ( pio, "set " );
 		_cmdPutString ( pio, pszSetting );
 		_cmdPutString ( pio, " requires a setting value\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 
@@ -420,6 +440,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( NULL == pszTime )
 		{
 			_cmdPutString ( pio, "datetime requires yyyy-mm-dd hh:mm:ss\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 
@@ -497,6 +518,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 				//23cm	1296.5
 			default:
 				_cmdPutString ( pio, "unrecognized band\r\n" );
+				CWCMD_SendPrompt ( pio );
 				return CMDPROC_ERROR;
 			break;
 			}
@@ -508,6 +530,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 			if ( freq < 7200 || freq > 200000000 )
 			{
 				_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
+				CWCMD_SendPrompt ( pio );
 				return CMDPROC_ERROR;
 			}
 			else
@@ -524,6 +547,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( band > 32 )
 		{
 			_cmdPutString ( pio, "band must be -1, or 0 - 32\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -537,6 +561,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( duty < 0 || duty > 100 )
 		{
 			_cmdPutString ( pio, "duty must be 0 - 100\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -550,6 +575,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( nLen < 4 || nLen > 6 )
 		{
 			_cmdPutString ( pio, "callsign must be 4-6 characters\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -565,6 +591,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( nLen != 4 )
 		{
 			_cmdPutString ( pio, "maidenhead must always be 4 characters\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -580,6 +607,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( power < 0 || power > 60 )
 		{
 			_cmdPutString ( pio, "power must be 0 - 60\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -607,6 +635,7 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		if ( rate < 300 || rate > 115200 )
 		{
 			_cmdPutString ( pio, "rate must be 200 - 115200\r\n" );
+			CWCMD_SendPrompt ( pio );
 			return CMDPROC_ERROR;
 		}
 		else
@@ -625,11 +654,13 @@ static CmdProcRetval cmdhdlSet ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutString ( pio, "error:  the setting " );
 		_cmdPutString ( pio, pszSetting );
 		_cmdPutString ( pio, "is not a valid setting name\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 
 	_cmdPutString ( pio, "done\r\n" );
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -645,6 +676,7 @@ static CmdProcRetval cmdhdlPerist ( const IOStreamIF* pio, const char* pszszToke
 	{
 		_cmdPutString ( pio, "Failed to persist settings!\r\n" );
 	}
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -660,6 +692,7 @@ static CmdProcRetval cmdhdlDeperist ( const IOStreamIF* pio, const char* pszszTo
 	{
 		_cmdPutString ( pio, "Failed to depersist settings!\r\n" );
 	}
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -750,6 +783,7 @@ static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens
 //	vPortHeapWalk ( fxnHeapwalk, (void*)pio );
 #endif
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 #endif
@@ -800,6 +834,7 @@ static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens 
 		_cmdPutString ( pio, "(no lock yet)\r\n" );
 	}
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -825,6 +860,7 @@ static CmdProcRetval cmdhdlRef ( const IOStreamIF* pio, const char* pszszTokens 
 			if ( freq < 7200 || freq > 200000000 )
 			{
 				_cmdPutString ( pio, "freq must be in range 7200 - 200000000\r\n" );
+				CWCMD_SendPrompt ( pio );
 				return CMDPROC_ERROR;
 			}
 		}
@@ -837,6 +873,7 @@ static CmdProcRetval cmdhdlRef ( const IOStreamIF* pio, const char* pszszTokens 
 		WSPR_StopReference();
 		_cmdPutString ( pio, "Reference signal stopped\r\n" );
 	}
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -875,12 +912,14 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 	if ( NULL == pszStartAddress )
 	{
 		_cmdPutString ( pio, "dump requires an address\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 	pszCount = CMDPROC_nextToken ( pszStartAddress );
 	if ( NULL == pszCount )
 	{
 		_cmdPutString ( pio, "dump requires a count\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 
@@ -893,11 +932,13 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 	if ( nCount < 1 )
 	{
 		_cmdPutString ( pio, "too few bytes to dump.  1 - 8192.\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 	if ( nCount > 8192 )
 	{
 		_cmdPutString ( pio, "too many bytes to dump.  1 - 8192.\r\n" );
+		CWCMD_SendPrompt ( pio );
 		return CMDPROC_ERROR;
 	}
 
@@ -950,6 +991,7 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 		nIdx += nToDo;
 	}
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
@@ -989,6 +1031,7 @@ static CmdProcRetval cmdhdlWSPR001 ( const IOStreamIF* pio, const char* pszszTok
 		_cmdPutString ( pio, "WSPR'ing stopped\r\n" );
 	}
 
+	CWCMD_SendPrompt ( pio );
 	return CMDPROC_SUCCESS;
 }
 
