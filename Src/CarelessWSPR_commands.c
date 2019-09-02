@@ -39,10 +39,10 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 
 #ifdef DEBUG
 static CmdProcRetval cmdhdlDiag ( const IOStreamIF* pio, const char* pszszTokens );
-static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens );
 #endif
 
 static CmdProcRetval cmdhdlGps ( const IOStreamIF* pio, const char* pszszTokens );
+static CmdProcRetval cmdhdlWSPR001 ( const IOStreamIF* pio, const char* pszszTokens );
 static CmdProcRetval cmdhdlRef ( const IOStreamIF* pio, const char* pszszTokens );
 
 
@@ -56,9 +56,9 @@ const CmdProcEntry g_aceCommands[] =
 	{ "dump", cmdhdlDump, "dump memory; [addr] [count]" },
 #ifdef DEBUG
 	{ "diag", cmdhdlDiag, "show diagnostic info (DEBUG build only)" },
-	{ "exp001", cmdhdlExp001, "experimental command (DEBUG build only)" },
 #endif
 	{ "gps", cmdhdlGps, "show GPS info (if any)" },
+	{ "wspr", cmdhdlWSPR001, "emit WSPR signal; [on|off]" },
 	{ "ref", cmdhdlRef, "emit reference signal; [on|off] {freq}" },
 
 	{ "help", cmdhdlHelp, "get help on a command; help [cmd]" },
@@ -855,16 +855,14 @@ static CmdProcRetval cmdhdlDump ( const IOStreamIF* pio, const char* pszszTokens
 
 
 //========================================================================
-//'exp001' command handler
+//'wspr' command handler
 
-
-#ifdef DEBUG
 
 #include "task_wspr.h"
 #include "wspr.h"
 
 //this is used for doing experiments during development
-static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszTokens )
+static CmdProcRetval cmdhdlWSPR001 ( const IOStreamIF* pio, const char* pszszTokens )
 {
 	const char* pszArg1 = pszszTokens;
 	if ( 0 == strcmp ( pszArg1, "on" ) )
@@ -894,4 +892,3 @@ static CmdProcRetval cmdhdlExp001 ( const IOStreamIF* pio, const char* pszszToke
 }
 
 
-#endif
